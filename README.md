@@ -4,8 +4,11 @@ A [Claude Code plugin](https://code.claude.com/docs/en/plugins) providing depend
 
 ## Install
 
+Add the marketplace and install the plugin:
+
 ```
-/plugin install git-pkgs/skills
+/plugin marketplace add git-pkgs/skills
+/plugin install git-pkgs@git-pkgs
 ```
 
 Requires `git-pkgs` and `brief` to be installed:

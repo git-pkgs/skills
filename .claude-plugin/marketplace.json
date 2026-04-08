@@ -1,0 +1,27 @@
+{
+  "name": "git-pkgs",
+  "owner": {
+    "name": "Andrew Nesbitt",
+    "email": "andrew@nesbitt.io"
+  },
+  "metadata": {
+    "description": "Dependency management skills powered by git-pkgs and brief"
+  },
+  "plugins": [
+    {
+      "name": "git-pkgs",
+      "source": "./",
+      "description": "Dependency management skills powered by git-pkgs and brief. Track dependency history, scan for vulnerabilities, evaluate packages, generate SBOMs, and more.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Andrew Nesbitt",
+        "email": "andrew@nesbitt.io"
+      },
+      "license": "MIT",
+      "repository": "https://github.com/git-pkgs/skills",
+      "homepage": "https://github.com/git-pkgs/skills",
+      "category": "dependencies",
+      "keywords": ["dependencies", "packages", "supply-chain", "security", "vulnerabilities", "sbom", "licenses", "git-pkgs", "brief"]
+    }
+  ]
+}

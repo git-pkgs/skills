@@ -3,9 +3,10 @@
   "description": "Dependency management skills powered by git-pkgs and brief. Track dependency history, scan for vulnerabilities, evaluate packages, generate SBOMs, and more.",
   "version": "0.1.0",
   "author": {
-    "name": "Andrew Nesbitt"
+    "name": "Andrew Nesbitt",
+    "email": "andrew@nesbitt.io"
   },
-  "homepage": "https://github.com/git-pkgs/git-pkgs",
+  "homepage": "https://github.com/git-pkgs/skills",
   "repository": "https://github.com/git-pkgs/skills",
   "license": "MIT"
 }
