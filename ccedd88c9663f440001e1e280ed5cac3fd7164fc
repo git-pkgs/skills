@@ -1,0 +1,25 @@
+LICENSE
+  3818be7834e76bef 3
+README.md
+  3818be7834e76bef 1-56
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "ccedd88c9663f440001e1e280ed5cac3fd7164fc",
+  "prompts": {
+    "3818be7834e76bef": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4de1d14c-afc0-4d47-a8f3-413fd7bab7c0",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "Andrew Nesbitt",
+      "messages": [],
+      "total_additions": 69,
+      "total_deletions": 13,
+      "accepted_lines": 57,
+      "overriden_lines": 0
+    }
+  }
+}
