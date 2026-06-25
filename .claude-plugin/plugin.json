@@ -1,7 +1,7 @@
 {
   "name": "git-pkgs",
-  "description": "Dependency management skills powered by git-pkgs and brief. Track dependency history, scan for vulnerabilities, evaluate packages, generate SBOMs, and more.",
-  "version": "0.1.0",
+  "description": "Dependency and repository management skills powered by git-pkgs, brief, and forge. Track dependency history, scan for vulnerabilities, evaluate packages, generate SBOMs, work across git forges, and more.",
+  "version": "0.2.0",
   "author": {
     "name": "Andrew Nesbitt",
     "email": "andrew@nesbitt.io"
