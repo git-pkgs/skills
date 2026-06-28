@@ -1,6 +1,6 @@
 # git-pkgs skills
 
-A [Claude Code plugin](https://code.claude.com/docs/en/plugins) providing dependency management skills powered by [git-pkgs](https://github.com/git-pkgs/git-pkgs) and [brief](https://github.com/git-pkgs/brief).
+A [Claude Code plugin](https://code.claude.com/docs/en/plugins) providing dependency and repository management skills powered by [git-pkgs](https://github.com/git-pkgs/git-pkgs), [brief](https://github.com/git-pkgs/brief), and [forge](https://github.com/git-pkgs/forge).
 
 ## Install
 
@@ -11,11 +11,12 @@ Add the marketplace and install the plugin:
 /plugin install git-pkgs@git-pkgs
 ```
 
-Requires `git-pkgs` and `brief` to be installed:
+Requires `git-pkgs`, `brief`, and `forge` to be installed:
 
 ```bash
 brew install git-pkgs
 go install github.com/git-pkgs/brief/cmd/brief@latest
+go install github.com/git-pkgs/forge/cmd/forge@latest
 ```
 
 ## Skills
@@ -33,6 +34,7 @@ go install github.com/git-pkgs/brief/cmd/brief@latest
 | [`sbom`](skills/sbom/SKILL.md) | Generate CycloneDX or SPDX SBOMs |
 | [`manage`](skills/manage/SKILL.md) | Add, remove, update, install, or vendor dependencies |
 | [`evaluate`](skills/evaluate/SKILL.md) | Assess a package's trustworthiness before adding it |
+| [`forge`](skills/forge/SKILL.md) | Work with GitHub, GitLab, Gitea, Forgejo, and Bitbucket repos through one CLI |
 
 Most skills are triggered automatically by Claude when relevant. `manage` is manual-only since it modifies dependencies.
 
