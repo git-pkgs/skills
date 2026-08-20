@@ -1,7 +1,7 @@
 ---
 name: list
 description: List, search, and locate dependencies in the current project. Use when exploring what packages are installed, finding where a dependency is declared, searching for packages by name pattern, or viewing the dependency tree.
-allowed-tools: Bash(git-pkgs list *) Bash(git-pkgs tree *) Bash(git-pkgs search *) Bash(git-pkgs where *) Bash(git-pkgs browse *) Bash(git-pkgs urls *) Bash(git-pkgs notes *) Bash(git-pkgs integrity *)
+allowed-tools: Bash(git-pkgs list *) Bash(git-pkgs tree *) Bash(git-pkgs resolve *) Bash(git-pkgs search *) Bash(git-pkgs where *) Bash(git-pkgs browse *) Bash(git-pkgs urls *) Bash(git-pkgs notes *) Bash(git-pkgs integrity *) Bash(git-pkgs maintainers *) Bash(git-pkgs funding *)
 ---
 
 # List and Search Dependencies
@@ -17,13 +17,20 @@ git-pkgs list
 
 Options:
 - `--commit=REF` - list at a specific commit
-- `--ecosystem=ECO` - filter by ecosystem
-- `--manifest=PATH` - filter by manifest file
-- `--json` - JSON output
+- `-e ECO` - filter by ecosystem
+- `-m PATH` - filter by manifest file
+- `-t TYPE` - filter by dependency type (runtime, development)
+- `-f json` - JSON output
 
 **Show dependency tree** (grouped by manifest and type):
 ```bash
 git-pkgs tree
+```
+
+**Resolve the actual dependency graph** by running the local package manager (assumes deps are installed):
+```bash
+git-pkgs resolve
+git-pkgs resolve -f json
 ```
 
 **Search by name pattern:**
@@ -46,6 +53,18 @@ git-pkgs browse lodash
 ```bash
 git-pkgs urls lodash
 git-pkgs urls pkg:npm/lodash@4.17.21
+```
+
+**Show maintainers for each dependency:**
+```bash
+git-pkgs maintainers
+git-pkgs maintainers --single   # only packages with one maintainer
+```
+
+**Show funding links for dependencies:**
+```bash
+git-pkgs funding
+git-pkgs funding --missing
 ```
 
 **Show lockfile integrity hashes** and detect drift:

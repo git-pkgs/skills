@@ -17,13 +17,18 @@ git-pkgs sbom
 
 **Generate SBOM in SPDX format:**
 ```bash
-git-pkgs sbom --format=spdx
+git-pkgs sbom --type=spdx
 ```
 
 Options:
-- `--format=FORMAT` - output format: `cyclonedx` (default), `spdx`
-- `--output=FILE` - write to file instead of stdout
-- `--json` - JSON output (default for both formats)
+- `--type=TYPE` - SBOM type: `cyclonedx` (default), `spdx`
+- `-f FORMAT` - encoding: `json` (default), `xml`
+- `--name=NAME` - project name (defaults to git directory name)
+- `--version=VER` - project version
+- `-c REF` - generate for a specific commit
+- `--skip-enrichment` - skip fetching license data from ecosyste.ms
+
+Output goes to stdout; redirect to a file with `> sbom.json`.
 
 ## When to use
 
