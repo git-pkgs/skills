@@ -1,7 +1,7 @@
 ---
 name: init
 description: Initialize, reindex, or manage the git-pkgs dependency database. Use when setting up git-pkgs in a repository for the first time, updating the database after pulling new commits, or checking database status.
-allowed-tools: Bash(git-pkgs init *) Bash(git-pkgs reindex *) Bash(git-pkgs upgrade *) Bash(git-pkgs hooks *) Bash(git-pkgs info *) Bash(git-pkgs ecosystems *)
+allowed-tools: Bash(git-pkgs init *) Bash(git-pkgs reindex *) Bash(git-pkgs upgrade *) Bash(git-pkgs hooks *) Bash(git-pkgs branch *) Bash(git-pkgs info *) Bash(git-pkgs ecosystems *)
 ---
 
 # Initialize git-pkgs
@@ -24,6 +24,13 @@ Options:
 **Update after pulling new commits:**
 ```bash
 git-pkgs reindex
+```
+
+**Track additional branches** (init only follows the current branch by default):
+```bash
+git-pkgs branch add release-1.x
+git-pkgs branch list
+git-pkgs branch remove release-1.x
 ```
 
 **Check database status:**

@@ -1,7 +1,7 @@
 ---
 name: evaluate
 description: Evaluate a package before adding it as a dependency. Checks registry metadata, adoption, maintenance, security posture, and license. Use when assessing whether a package is trustworthy, comparing alternatives, or reviewing a new dependency.
-allowed-tools: Bash(git-pkgs urls *) Bash(git-pkgs licenses *) Bash(git-pkgs vulns *) Bash(curl *) Bash(git-pkgs search *)
+allowed-tools: Bash(git-pkgs urls *) Bash(git-pkgs licenses *) Bash(git-pkgs vulns *) Bash(git-pkgs health *) Bash(git-pkgs maintainers *) Bash(git-pkgs provenance *) Bash(git-pkgs changelog *) Bash(curl *) Bash(git-pkgs search *)
 ---
 
 # Evaluate a Package
@@ -58,13 +58,21 @@ curl -s "https://api.scorecard.dev/projects/github.com/<owner>/<repo>" | jq '{
 
 Score below 5 warrants a closer look. If `Maintained` or `Dangerous-Workflow` scores are below 3, flag as higher risk.
 
-### 4. Check for known vulnerabilities
+### 4. Check registry links and advisories
 
 ```bash
 git-pkgs urls <package>
 ```
 
-### 5. Check license
+Gives registry page, download URL, docs, source repo, and PURL. Follow the registry page for open advisories.
+
+### 5. Review recent changes
+
+```bash
+git-pkgs changelog <package> -e <ecosystem>
+```
+
+### 6. Check license
 
 Verify the license is compatible with the project. See the licenses skill for categories.
 
@@ -89,6 +97,16 @@ Watch for: character substitution (`djang0` vs `django`), character omission (`l
 - Multiple maintainers
 - OSI-approved license
 - Provenance attestation
+
+## Evaluating already-installed dependencies
+
+When the package is already in the tree, git-pkgs can score the whole set without hand-rolled curl:
+
+```bash
+git-pkgs health --threshold 40   # maintenance health scores at or below 40
+git-pkgs maintainers --single    # bus-factor risk
+git-pkgs provenance --missing    # missing trusted-publishing attestation
+```
 
 ## Less reliable signals
 

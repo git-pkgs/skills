@@ -1,7 +1,7 @@
 ---
 name: diff
 description: Compare dependencies between commits, branches, or the working tree. Use when reviewing what dependencies changed in a PR, between releases, or since a specific commit.
-allowed-tools: Bash(git-pkgs diff *) Bash(git-pkgs diff-file *) Bash(git-pkgs show *)
+allowed-tools: Bash(git-pkgs diff *) Bash(git-pkgs diff-file *) Bash(git-pkgs diff-driver *) Bash(git-pkgs show *)
 ---
 
 # Compare Dependencies
@@ -33,9 +33,17 @@ git-pkgs show abc1234
 git-pkgs diff-file Gemfile.lock.old Gemfile.lock
 ```
 
+**Install a git textconv driver** so plain `git diff` on lockfiles shows sorted dependency lists instead of raw churn:
+```bash
+git-pkgs diff-driver --install
+```
+
 Options:
-- `--ecosystem=ECO` - filter by ecosystem
-- `--json` - JSON output
+- `-e ECO` - filter by ecosystem
+- `-t TYPE` - filter by dependency type (runtime, development)
+- `--kind manifest|lockfile` - only compare declarations or only resolved versions
+- `--stat` - aggregate change counts instead of full listing
+- `-f json` - JSON output
 
 ## When to use
 

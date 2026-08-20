@@ -1,8 +1,8 @@
 ---
 name: manage
-description: Add, remove, update, install, or vendor dependencies using the project's detected package manager. Use when the user wants to modify their dependencies.
+description: Add, remove, update, install, replace, or vendor dependencies using the project's detected package manager. Use when the user wants to modify their dependencies.
 disable-model-invocation: true
-allowed-tools: Bash(git-pkgs add *) Bash(git-pkgs remove *) Bash(git-pkgs update *) Bash(git-pkgs install *) Bash(git-pkgs vendor *)
+allowed-tools: Bash(git-pkgs add *) Bash(git-pkgs remove *) Bash(git-pkgs update *) Bash(git-pkgs install *) Bash(git-pkgs vendor *) Bash(git-pkgs replace *)
 ---
 
 # Manage Dependencies
@@ -14,6 +14,7 @@ Add, remove, update, install, or vendor dependencies. git-pkgs detects the packa
 **Add a dependency:**
 ```bash
 git-pkgs add lodash
+git-pkgs add lodash 4.17.21
 git-pkgs add lodash --dev
 ```
 
@@ -28,6 +29,14 @@ git-pkgs update           # update all
 git-pkgs update lodash    # update one package
 ```
 
+**Redirect a dependency to a local checkout, git ref, or specific version** for downstream testing:
+```bash
+git-pkgs replace github.com/acme/lib --path ../lib
+git-pkgs replace lodash --git https://github.com/fork/lodash --ref fix-branch
+git-pkgs replace lodash 4.17.21
+git-pkgs replace github.com/acme/lib --drop   # remove the override
+```
+
 **Install from lockfile:**
 ```bash
 git-pkgs install
@@ -37,6 +46,12 @@ git-pkgs install
 ```bash
 git-pkgs vendor
 ```
+
+Common flags on all of the above:
+- `-m MANAGER` - override detected package manager
+- `-e ECO` - filter to one ecosystem in a polyglot project
+- `-x ARG` - pass an extra argument through to the underlying manager
+- `--dry-run` - show what would be run without executing
 
 ## Before adding a dependency
 
@@ -59,5 +74,6 @@ Always clarify if a dependency is for development only (`--dev`) to minimize the
 ## When to use
 
 - When the user asks to add, remove, or update a package
+- When testing a fix in a dependency by pointing at a local checkout or fork
 - When installing dependencies in a freshly cloned repo
 - When vendoring for airgapped or reproducible builds
