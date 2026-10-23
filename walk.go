@@ -56,12 +56,21 @@ func WalkFS(fsys fs.FS, root string, fn func(*Skill, error) error, opts ...Optio
 	if fn == nil {
 		return errors.New("skills: walk callback is required")
 	}
-	cfg := newWalkConfig(opts)
 	root = path.Clean(root)
+	if err := walkFS(fsys, root, "", fn, opts); err != nil {
+		return fmt.Errorf("skills: walk %s: %w", root, err)
+	}
+	return nil
+}
+
+// walkFS is WalkFS without the error prefix. label is passed to parseFS so
+// disk callers see absolute paths in parse errors.
+func walkFS(fsys fs.FS, root, label string, fn func(*Skill, error) error, opts []Option) error {
+	cfg := newWalkConfig(opts)
 	return fs.WalkDir(fsys, root, func(p string, entry fs.DirEntry, err error) error {
 		if err != nil {
 			if p == root {
-				return fmt.Errorf("skills: walk %s: %w", root, err)
+				return err
 			}
 			return nil
 		}
@@ -74,7 +83,7 @@ func WalkFS(fsys fs.FS, root string, fn func(*Skill, error) error, opts ...Optio
 		if entry.Name() != Filename {
 			return nil
 		}
-		return fn(ParseFS(fsys, p))
+		return fn(parseFS(fsys, p, label))
 	})
 }
 
@@ -88,13 +97,13 @@ func Walk(root string, fn func(*Skill) error, opts ...Option) error {
 	if err != nil {
 		return fmt.Errorf("skills: resolve %s: %w", root, err)
 	}
-	err = WalkFS(os.DirFS(abs), ".", func(skill *Skill, err error) error {
+	err = walkFS(os.DirFS(abs), ".", abs, func(skill *Skill, err error) error {
 		if err != nil {
 			return err
 		}
 		skill.SourcePath = filepath.Join(abs, filepath.FromSlash(skill.Dir))
 		return fn(skill)
-	}, opts...)
+	}, opts)
 	if err != nil {
 		return fmt.Errorf("skills: walk %s: %w", abs, err)
 	}
@@ -102,14 +111,19 @@ func Walk(root string, fn func(*Skill) error, opts ...Option) error {
 }
 
 // Discover returns every skill under the root of fsys. Skills that fail to
-// parse are left out and their errors joined into the returned error, so a
-// single bad SKILL.md does not hide the rest.
+// parse, or have no description, are left out and reported in the joined
+// error, so a single bad SKILL.md does not hide the rest. The client guide
+// skips skills without a description because agents select skills by it.
 func Discover(fsys fs.FS, opts ...Option) ([]*Skill, error) {
 	var found []*Skill
 	var errs []error
 	err := WalkFS(fsys, ".", func(skill *Skill, err error) error {
 		if err != nil {
 			errs = append(errs, err)
+			return nil
+		}
+		if skill.Description == "" {
+			errs = append(errs, fmt.Errorf("skills: %s: description is missing, skipped", path.Join(skill.Dir, Filename)))
 			return nil
 		}
 		found = append(found, skill)

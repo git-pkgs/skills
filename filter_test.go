@@ -55,7 +55,7 @@ func TestPathFilters(t *testing.T) {
 	if !PathIncluded(".git/config", nil, []string{".git/**"}) {
 		t.Fatal(".git was excluded")
 	}
-	if !DirAllExcluded("src/generated", paths, ignore) {
+	if !DirAllExcluded("src/generated", ignore) {
 		t.Fatal("generated directory was not blanketed")
 	}
 }

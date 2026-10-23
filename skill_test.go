@@ -249,3 +249,48 @@ func TestValidateNamespace(t *testing.T) {
 func hasWarning(skill *Skill, substr string) bool {
 	return slices.ContainsFunc(skill.Warnings, func(w string) bool { return strings.Contains(w, substr) })
 }
+
+func TestParseRootSkillWithoutName(t *testing.T) {
+	fsys := fstest.MapFS{"SKILL.md": {Data: []byte("---\ndescription: d\n---\nbody\n")}}
+	skill, err := ParseFS(fsys, ".")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if skill.Name != "" || !hasWarning(skill, "name missing and no directory name") {
+		t.Errorf("name = %q warnings = %v", skill.Name, skill.Warnings)
+	}
+	if hasWarning(skill, "not spec-conformant") {
+		t.Errorf("warnings = %v", skill.Warnings)
+	}
+}
+
+func TestParseRootSkillWithName(t *testing.T) {
+	fsys := fstest.MapFS{"SKILL.md": {Data: []byte("---\nname: tool\ndescription: d\n---\n")}}
+	skill, err := ParseFS(fsys, ".")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if skill.Name != "tool" || len(skill.Warnings) != 0 {
+		t.Errorf("name = %q warnings = %v", skill.Name, skill.Warnings)
+	}
+}
+
+func TestParseFilesStopAtNestedSkills(t *testing.T) {
+	fsys := fstest.MapFS{
+		"group/SKILL.md":            skillDoc("group"),
+		"group/notes.md":            {Data: []byte("notes")},
+		"group/two/SKILL.md":        skillDoc("two"),
+		"group/two/scripts/run.sh":  {Data: []byte("#!/bin/sh")},
+		"group/shared/reference.md": {Data: []byte("ref")},
+	}
+	skill, err := ParseFS(fsys, "group")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"notes.md", "shared/reference.md"}; !slices.Equal(skill.Files, want) {
+		t.Errorf("files = %v, want %v", skill.Files, want)
+	}
+	if skill.HasScripts() {
+		t.Error("parent skill picked up a child skill's scripts")
+	}
+}

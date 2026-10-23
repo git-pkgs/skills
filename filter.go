@@ -13,7 +13,7 @@ const (
 
 // DirAllExcluded reports whether an ignore pattern excludes every file below
 // rel. A pattern ending in /** is the only form that can blanket a directory.
-func DirAllExcluded(rel string, _ []string, ignore []string) bool {
+func DirAllExcluded(rel string, ignore []string) bool {
 	if rel == gitMetadataDir || strings.HasPrefix(rel, gitMetadataPrefix) {
 		return false
 	}

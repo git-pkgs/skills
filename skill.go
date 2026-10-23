@@ -1,7 +1,7 @@
 // Package skills finds, parses, validates and stages agent skills: directories
-// containing a SKILL.md file as described at [SpecURL]. It reads from any
-// fs.FS, so the same code handles a checkout on disk, an unpacked package, or
-// a package archive opened with github.com/git-pkgs/archives.
+// containing a SKILL.md file as described at [SpecURL]. Parse and Walk work on
+// paths on disk; ParseFS, WalkFS and Discover work on any fs.FS, such as an
+// unpacked package or an archive.
 package skills
 
 import (
@@ -262,12 +262,15 @@ func hash(parts ...[]byte) string {
 // implementations to load non-conformant skills rather than reject them.
 func (s *Skill) validate(name string, hadFrontmatter bool) {
 	inferred := inferredName(name)
-	if s.Name == "" {
+	switch {
+	case s.Name == "" && inferred == "":
+		s.Warnings = append(s.Warnings, "name missing and no directory name to use")
+	case s.Name == "":
 		s.Name = inferred
 		if hadFrontmatter {
 			s.Warnings = append(s.Warnings, "name missing, using path name")
 		}
-	} else if isSkillFile(name) && inferred != "." && s.Name != inferred {
+	case isSkillFile(name) && inferred != "" && s.Name != inferred:
 		s.Warnings = append(s.Warnings, fmt.Sprintf("name %q does not match directory %q", s.Name, inferred))
 	}
 	if hadFrontmatter && s.Description == "" {
@@ -276,7 +279,7 @@ func (s *Skill) validate(name string, hadFrontmatter bool) {
 	if len(s.Name) > maxNameLen {
 		s.Warnings = append(s.Warnings, fmt.Sprintf("name %q exceeds %d characters", s.Name, maxNameLen))
 	}
-	if !namePattern.MatchString(s.Name) {
+	if s.Name != "" && !namePattern.MatchString(s.Name) {
 		s.Warnings = append(s.Warnings,
 			fmt.Sprintf("name %q is not spec-conformant (lowercase, digits, hyphens only)", s.Name))
 	}
@@ -294,12 +297,18 @@ func isSkillFile(name string) bool {
 
 func inferredName(name string) string {
 	if isSkillFile(name) {
-		return path.Base(path.Dir(path.Clean(name)))
+		dir := path.Dir(path.Clean(name))
+		if dir == "." {
+			return ""
+		}
+		return path.Base(dir)
 	}
 	base := path.Base(name)
 	return strings.TrimSuffix(base, path.Ext(base))
 }
 
+// listFiles lists files under dir, stopping at .git and at nested skill
+// directories, whose files belong to that skill.
 func listFiles(fsys fs.FS, dir string) ([]string, error) {
 	var files []string
 	err := fs.WalkDir(fsys, dir, func(p string, entry fs.DirEntry, err error) error {
@@ -307,7 +316,13 @@ func listFiles(fsys fs.FS, dir string) ([]string, error) {
 			return err
 		}
 		if entry.IsDir() {
-			if p != dir && entry.Name() == gitMetadataDir {
+			if p == dir {
+				return nil
+			}
+			if entry.Name() == gitMetadataDir {
+				return fs.SkipDir
+			}
+			if _, err := fs.Stat(fsys, path.Join(p, Filename)); err == nil {
 				return fs.SkipDir
 			}
 			return nil

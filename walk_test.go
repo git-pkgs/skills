@@ -3,6 +3,7 @@ package skills
 import (
 	"errors"
 	"slices"
+	"strings"
 	"testing"
 	"testing/fstest"
 )
@@ -111,5 +112,26 @@ func TestWalkSubtree(t *testing.T) {
 func TestWalkMissingRoot(t *testing.T) {
 	if err := WalkFS(fstest.MapFS{}, "nope", func(*Skill, error) error { return nil }); err == nil {
 		t.Fatal("expected error for missing root")
+	}
+}
+
+func TestDiscoverSkipsMissingDescription(t *testing.T) {
+	fsys := fstest.MapFS{
+		"good/SKILL.md":   skillDoc("good"),
+		"nodesc/SKILL.md": {Data: []byte("---\nname: nodesc\n---\nbody\n")},
+	}
+	found, err := Discover(fsys)
+	if got := dirs(found); !slices.Equal(got, []string{"good"}) {
+		t.Errorf("found %v", got)
+	}
+	if err == nil || !strings.Contains(err.Error(), "nodesc/SKILL.md: description is missing") {
+		t.Errorf("err = %v", err)
+	}
+}
+
+func TestWalkFSRootError(t *testing.T) {
+	err := WalkFS(fstest.MapFS{}, "nope", func(*Skill, error) error { return nil })
+	if err == nil || strings.Count(err.Error(), "skills: walk") != 1 {
+		t.Errorf("err = %v", err)
 	}
 }

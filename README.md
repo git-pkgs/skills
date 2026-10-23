@@ -29,7 +29,7 @@ Frontmatter keys outside the spec, such as the `library` and `requires` fields T
 found, err := skills.Discover(os.DirFS("."))
 ```
 
-`Discover` searches up to six directories deep and skips `.git`, `node_modules`, `.venv`, `__pycache__` and `vendor`. A skill that fails to parse is left out and its error joined into `err`, so one bad file does not hide the rest. Use `WithMaxDepth` and `WithSkipDirs` to change the defaults, or `WalkFS` to handle each skill as it is found. `Walk(root, fn)` walks a directory on disk with the same defaults, sets `SourcePath`, and stops at the first error.
+`Discover` searches up to six directories deep and skips `.git`, `node_modules`, `.venv`, `__pycache__` and `vendor`. A skill that fails to parse, or has no description, is left out and reported in the joined `err`, so one bad file does not hide the rest. Skipping skills without a description follows the spec's [client guide](https://agentskills.io/client-implementation/adding-skills-support), since agents choose skills by it; `Parse`, `ParseFS` and `Walk` still return them with a warning. Use `WithMaxDepth` and `WithSkipDirs` to change the defaults, or `WalkFS` to handle each skill as it is found. `Walk(root, fn)` walks a directory on disk with the same defaults, sets `SourcePath`, and stops at the first error.
 
 ### Find skills in a package archive
 

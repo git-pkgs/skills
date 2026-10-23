@@ -165,3 +165,13 @@ func TestValidateName(t *testing.T) {
 		}
 	}
 }
+
+func TestWalkDiskErrorShowsAbsolutePath(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "bad", Filename)
+	writeFile(t, path, "---\nname: [\n---\n")
+	err := Walk(root, func(*Skill) error { return nil })
+	if err == nil || !strings.Contains(err.Error(), path) || strings.Count(err.Error(), "skills: walk") != 1 {
+		t.Fatalf("err = %v", err)
+	}
+}
