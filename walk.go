@@ -111,19 +111,14 @@ func Walk(root string, fn func(*Skill) error, opts ...Option) error {
 }
 
 // Discover returns every skill under the root of fsys. Skills that fail to
-// parse, or have no description, are left out and reported in the joined
-// error, so a single bad SKILL.md does not hide the rest. The client guide
-// skips skills without a description because agents select skills by it.
+// parse are left out and their errors joined into the returned error, so a
+// single bad SKILL.md does not hide the rest.
 func Discover(fsys fs.FS, opts ...Option) ([]*Skill, error) {
 	var found []*Skill
 	var errs []error
 	err := WalkFS(fsys, ".", func(skill *Skill, err error) error {
 		if err != nil {
 			errs = append(errs, err)
-			return nil
-		}
-		if skill.Description == "" {
-			errs = append(errs, fmt.Errorf("skills: %s: description is missing, skipped", path.Join(skill.Dir, Filename)))
 			return nil
 		}
 		found = append(found, skill)

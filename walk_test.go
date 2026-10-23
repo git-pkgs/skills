@@ -115,17 +115,20 @@ func TestWalkMissingRoot(t *testing.T) {
 	}
 }
 
-func TestDiscoverSkipsMissingDescription(t *testing.T) {
+func TestDiscoverKeepsMissingDescription(t *testing.T) {
 	fsys := fstest.MapFS{
 		"good/SKILL.md":   skillDoc("good"),
 		"nodesc/SKILL.md": {Data: []byte("---\nname: nodesc\n---\nbody\n")},
 	}
 	found, err := Discover(fsys)
-	if got := dirs(found); !slices.Equal(got, []string{"good"}) {
-		t.Errorf("found %v", got)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if err == nil || !strings.Contains(err.Error(), "nodesc/SKILL.md: description is missing") {
-		t.Errorf("err = %v", err)
+	if got := dirs(found); !slices.Equal(got, []string{"good", "nodesc"}) {
+		t.Fatalf("found %v", got)
+	}
+	if !hasWarning(found[1], "description is missing") {
+		t.Errorf("warnings = %v", found[1].Warnings)
 	}
 }
 
