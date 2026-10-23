@@ -21,7 +21,7 @@ fmt.Println(skill.Files, skill.HasScripts())
 
 `Parse` accepts a `SKILL.md` path, the directory holding one, or a standalone markdown file such as `review.md`. Spec violations (name format, field lengths, a name that differs from its directory) are recorded in `skill.Warnings` and the skill still loads, as the spec's client guide recommends. Invalid YAML is an error.
 
-Frontmatter keys outside the spec, such as the `library` and `requires` fields TanStack Intent adds, are kept in `skill.Extra` rather than dropped. `skill.SourceHash` is the SHA-256 of `SKILL.md` followed by any sibling `schema.json`.
+Frontmatter keys outside the spec, such as the `library` and `requires` fields TanStack Intent adds or Claude Code's `model`, are kept in `skill.Extra` rather than dropped, and each one adds a warning. `skill.SourceHash` is the SHA-256 of `SKILL.md` followed by any sibling `schema.json`.
 
 ### Find skills in a directory tree
 
@@ -48,7 +48,7 @@ Skill paths are relative to the archive root after the prefix is stripped.
 err := skills.Stage(fsys, skill, workspace, filepath.Join(workspace, ".claude", "skills", skill.Name))
 ```
 
-`Stage` clears the destination, copies the skill's sibling files from `fsys`, and writes a rendered `SKILL.md` and `schema.json`. The destination must resolve inside the workspace after following symlinks, and symlinks in the source are refused.
+`Stage` clears the destination, copies the skill's sibling files from `fsys`, and writes a rendered `SKILL.md` and `schema.json`. The destination must resolve inside the workspace after following symlinks, and symlinks in the source are refused. Extra frontmatter keys are written by default; pass `skills.WithoutExtra()` to stage only spec fields, for example when the skill comes from a repository you are auditing.
 
 ### Other helpers
 

@@ -12,6 +12,7 @@ import (
 	"io/fs"
 	"path"
 	"regexp"
+	"slices"
 	"strings"
 
 	"go.yaml.in/yaml/v3"
@@ -155,6 +156,15 @@ func (s *Skill) applyFrontmatter(fields map[string]any) {
 		if !specKeys[key] {
 			s.Extra[key] = value
 		}
+	}
+	// The spec expects extensions under metadata; record each top-level one.
+	extra := make([]string, 0, len(s.Extra))
+	for key := range s.Extra {
+		extra = append(extra, key)
+	}
+	slices.Sort(extra)
+	for _, key := range extra {
+		s.Warnings = append(s.Warnings, fmt.Sprintf("non-spec frontmatter key %q", key))
 	}
 }
 

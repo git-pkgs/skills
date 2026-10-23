@@ -16,14 +16,37 @@ const (
 	filePerm = 0o644
 )
 
+type stageConfig struct {
+	dropExtra bool
+}
+
+// StageOption configures Stage.
+type StageOption func(*stageConfig)
+
+// WithoutExtra leaves non-spec top-level frontmatter keys out of the staged
+// SKILL.md, so agent-specific settings such as model from an untrusted skill
+// do not reach the agent.
+func WithoutExtra() StageOption {
+	return func(c *stageConfig) { c.dropExtra = true }
+}
+
 // Stage writes skill into destination on disk: its sibling files read from
 // fsys under skill.Dir, a rendered SKILL.md, and schema.json when set.
 // destination is cleared first and must resolve, after following symlinks,
 // to a path inside workspace. Symlinks in the source are refused rather than
 // recreated.
-func Stage(fsys fs.FS, skill *Skill, workspace, destination string) error {
+func Stage(fsys fs.FS, skill *Skill, workspace, destination string, opts ...StageOption) error {
 	if skill == nil {
 		return errors.New("skills: skill is required")
+	}
+	var cfg stageConfig
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+	if cfg.dropExtra {
+		trimmed := *skill
+		trimmed.Extra = nil
+		skill = &trimmed
 	}
 	if workspace == "" {
 		return errors.New("skills: workspace is required")

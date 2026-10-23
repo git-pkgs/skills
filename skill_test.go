@@ -121,6 +121,21 @@ Body
 	if !hasWarning(skill, "not spec-conformant") || !hasWarning(skill, "does not match directory") {
 		t.Errorf("warnings = %v", skill.Warnings)
 	}
+	var extra []string
+	for _, w := range skill.Warnings {
+		if strings.HasPrefix(w, "non-spec frontmatter key") {
+			extra = append(extra, w)
+		}
+	}
+	want := []string{
+		`non-spec frontmatter key "library"`,
+		`non-spec frontmatter key "library_version"`,
+		`non-spec frontmatter key "requires"`,
+		`non-spec frontmatter key "type"`,
+	}
+	if !slices.Equal(extra, want) {
+		t.Errorf("extra warnings = %v, want %v", extra, want)
+	}
 }
 
 func TestParseOpenClawMetadata(t *testing.T) {

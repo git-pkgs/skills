@@ -126,3 +126,37 @@ func TestStageRejectsSourceSymlink(t *testing.T) {
 		t.Fatalf("err = %v", err)
 	}
 }
+
+func TestStageExtraKeys(t *testing.T) {
+	skill, err := ParseBytes([]byte("---\nname: x\ndescription: d\nmodel: opus\n---\nbody\n"), "x/SKILL.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	workspace := t.TempDir()
+	destination := filepath.Join(workspace, "skills", "x")
+
+	if err := Stage(nil, skill, workspace, destination); err != nil {
+		t.Fatal(err)
+	}
+	content, err := os.ReadFile(filepath.Join(destination, Filename))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(content), "model: opus") {
+		t.Errorf("default Stage dropped extra keys: %q", content)
+	}
+
+	if err := Stage(nil, skill, workspace, destination, WithoutExtra()); err != nil {
+		t.Fatal(err)
+	}
+	content, err = os.ReadFile(filepath.Join(destination, Filename))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(content), "model") || !strings.Contains(string(content), "description: d") {
+		t.Errorf("WithoutExtra SKILL.md = %q", content)
+	}
+	if skill.Extra["model"] != "opus" {
+		t.Error("WithoutExtra modified the caller's skill")
+	}
+}
