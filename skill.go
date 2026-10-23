@@ -10,7 +10,9 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io/fs"
+	"os"
 	"path"
+	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
@@ -63,6 +65,9 @@ type Skill struct {
 	// Dir is the skill directory, slash-separated and relative to the fs.FS
 	// root it was read from.
 	Dir string
+	// SourcePath is the absolute directory on disk for skills read with
+	// Parse or Walk, and empty for ParseFS.
+	SourcePath string
 	// Files lists everything under Dir except SKILL.md, relative to Dir.
 	Files []string
 	// SchemaJSON is the content of a sibling schema.json, a common extension
@@ -86,32 +91,70 @@ func (s *Skill) HasScripts() bool {
 	return false
 }
 
-// Parse reads the skill at name in fsys. name may be a SKILL.md path, the
+// ParseFS reads the skill at name in fsys. name may be a SKILL.md path, the
 // directory holding one, or a standalone markdown file such as review.md, in
 // which case siblings are not listed and the name comes from the file stem.
-func Parse(fsys fs.FS, name string) (*Skill, error) {
+func ParseFS(fsys fs.FS, name string) (*Skill, error) {
+	return parseFS(fsys, name, "")
+}
+
+// Parse reads the skill at path on disk, accepting the same forms as ParseFS,
+// and sets SourcePath to its absolute directory.
+func Parse(p string) (*Skill, error) {
+	abs, err := filepath.Abs(p)
+	if err != nil {
+		return nil, fmt.Errorf("skills: resolve %s: %w", p, err)
+	}
+	if !strings.EqualFold(filepath.Ext(abs), ".md") {
+		abs = filepath.Join(abs, Filename)
+	}
+	// Read from the parent so the skill directory's own name is available
+	// for name inference and warnings.
+	dir := filepath.Dir(abs)
+	root := filepath.Dir(dir)
+	name := filepath.Base(dir) + "/" + filepath.Base(abs)
+	if root == dir {
+		name = filepath.Base(abs)
+	}
+	skill, err := parseFS(os.DirFS(root), name, root)
+	if err != nil {
+		return nil, err
+	}
+	skill.SourcePath = dir
+	return skill, nil
+}
+
+// parseFS reads name from fsys. Errors show paths joined to label when set,
+// so disk callers see absolute paths.
+func parseFS(fsys fs.FS, name, label string) (*Skill, error) {
 	name = path.Clean(name)
 	if !strings.EqualFold(path.Ext(name), ".md") {
 		name = path.Join(name, Filename)
 	}
 	dir := path.Dir(name)
+	show := func(p string) string {
+		if label == "" {
+			return p
+		}
+		return filepath.Join(label, filepath.FromSlash(p))
+	}
 	raw, err := fs.ReadFile(fsys, name)
 	if err != nil {
-		return nil, fmt.Errorf("skills: read %s: %w", name, err)
+		return nil, fmt.Errorf("skills: read %s: %w", show(name), err)
 	}
 	schema, err := fs.ReadFile(fsys, path.Join(dir, schemaFilename))
 	if err != nil && !isNotExist(err) {
-		return nil, fmt.Errorf("skills: read %s: %w", path.Join(dir, schemaFilename), err)
+		return nil, fmt.Errorf("skills: read %s: %w", show(path.Join(dir, schemaFilename)), err)
 	}
 	skill, err := ParseBytes(raw, name)
 	if err != nil {
-		return nil, fmt.Errorf("skills: %s: %w", name, err)
+		return nil, fmt.Errorf("skills: %s: %w", show(name), err)
 	}
 	skill.SchemaJSON = string(schema)
 	skill.SourceHash = hash(raw, schema)
 	if isSkillFile(name) {
 		if skill.Files, err = listFiles(fsys, dir); err != nil {
-			return nil, fmt.Errorf("skills: list %s: %w", dir, err)
+			return nil, fmt.Errorf("skills: list %s: %w", show(dir), err)
 		}
 	}
 	return skill, nil

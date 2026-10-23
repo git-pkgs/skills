@@ -73,7 +73,7 @@ func TestConcat(t *testing.T) {
 
 func TestParseFromMapFSThenRender(t *testing.T) {
 	fsys := fstest.MapFS{"x/SKILL.md": {Data: []byte("plain body\n")}}
-	skill, err := Parse(fsys, "x")
+	skill, err := ParseFS(fsys, "x")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -25,7 +25,7 @@ func TestStage(t *testing.T) {
 		t.Fatal(err)
 	}
 	fsys := os.DirFS(source)
-	skill, err := Parse(fsys, "audit")
+	skill, err := ParseFS(fsys, "audit")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -116,7 +116,7 @@ func TestStageRejectsSourceSymlink(t *testing.T) {
 		t.Skip("symlinks unsupported:", err)
 	}
 	fsys := os.DirFS(source)
-	skill, err := Parse(fsys, "x")
+	skill, err := ParseFS(fsys, "x")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -4,7 +4,9 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"os"
 	"path"
+	"path/filepath"
 	"strings"
 )
 
@@ -47,10 +49,10 @@ func newWalkConfig(opts []Option) walkConfig {
 	return c
 }
 
-// Walk calls fn for each SKILL.md under root in fsys, in lexical order. A
+// WalkFS calls fn for each SKILL.md under root in fsys, in lexical order. A
 // parse failure is passed to fn with a nil skill; returning it stops the
 // walk, returning nil skips that skill. Unreadable directories are skipped.
-func Walk(fsys fs.FS, root string, fn func(*Skill, error) error, opts ...Option) error {
+func WalkFS(fsys fs.FS, root string, fn func(*Skill, error) error, opts ...Option) error {
 	if fn == nil {
 		return errors.New("skills: walk callback is required")
 	}
@@ -72,8 +74,31 @@ func Walk(fsys fs.FS, root string, fn func(*Skill, error) error, opts ...Option)
 		if entry.Name() != Filename {
 			return nil
 		}
-		return fn(Parse(fsys, p))
+		return fn(ParseFS(fsys, p))
 	})
+}
+
+// Walk calls fn for each SKILL.md under root on disk, with SourcePath set.
+// It stops at the first parse error or error returned by fn.
+func Walk(root string, fn func(*Skill) error, opts ...Option) error {
+	if fn == nil {
+		return errors.New("skills: walk callback is required")
+	}
+	abs, err := filepath.Abs(root)
+	if err != nil {
+		return fmt.Errorf("skills: resolve %s: %w", root, err)
+	}
+	err = WalkFS(os.DirFS(abs), ".", func(skill *Skill, err error) error {
+		if err != nil {
+			return err
+		}
+		skill.SourcePath = filepath.Join(abs, filepath.FromSlash(skill.Dir))
+		return fn(skill)
+	}, opts...)
+	if err != nil {
+		return fmt.Errorf("skills: walk %s: %w", abs, err)
+	}
+	return nil
 }
 
 // Discover returns every skill under the root of fsys. Skills that fail to
@@ -82,7 +107,7 @@ func Walk(fsys fs.FS, root string, fn func(*Skill, error) error, opts ...Option)
 func Discover(fsys fs.FS, opts ...Option) ([]*Skill, error) {
 	var found []*Skill
 	var errs []error
-	err := Walk(fsys, ".", func(skill *Skill, err error) error {
+	err := WalkFS(fsys, ".", func(skill *Skill, err error) error {
 		if err != nil {
 			errs = append(errs, err)
 			return nil

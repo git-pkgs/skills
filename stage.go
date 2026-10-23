@@ -30,8 +30,19 @@ func WithoutExtra() StageOption {
 	return func(c *stageConfig) { c.dropExtra = true }
 }
 
-// Stage writes skill into destination on disk: its sibling files read from
-// fsys under skill.Dir, a rendered SKILL.md, and schema.json when set.
+// ValidateName reports whether name can be used as a single directory name
+// for a staged skill. Check it before building a destination from the name:
+// filepath.Join cleans "../x" away, so Stage cannot catch it afterwards.
+func ValidateName(name string) error {
+	if name == "" || !filepath.IsLocal(name) || filepath.Base(name) != name {
+		return fmt.Errorf("skills: skill name %q contains path separators", name)
+	}
+	return nil
+}
+
+// Stage writes skill into destination on disk: its sibling files, a rendered
+// SKILL.md, and schema.json when set. Siblings are read from fsys under
+// skill.Dir, or from skill.SourcePath when fsys is nil.
 // destination is cleared first and must resolve, after following symlinks,
 // to a path inside workspace. Symlinks in the source are refused rather than
 // recreated.
@@ -60,8 +71,12 @@ func Stage(fsys fs.FS, skill *Skill, workspace, destination string, opts ...Stag
 	if err := os.MkdirAll(destination, dirPerm); err != nil {
 		return fmt.Errorf("skills: create destination: %w", err)
 	}
-	if fsys != nil && skill.Dir != "" {
-		if err := copySiblings(fsys, skill.Dir, destination); err != nil {
+	source, dir := fsys, skill.Dir
+	if source == nil && skill.SourcePath != "" {
+		source, dir = os.DirFS(skill.SourcePath), "."
+	}
+	if source != nil && dir != "" {
+		if err := copySiblings(source, dir, destination); err != nil && !errors.Is(err, fs.ErrNotExist) {
 			return fmt.Errorf("skills: copy siblings: %w", err)
 		}
 	}

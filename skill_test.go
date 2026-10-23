@@ -25,7 +25,7 @@ Read the repository.
 		"audit/references/api.md": {Data: []byte("# API\n")},
 	}
 
-	skill, err := Parse(fsys, "audit/SKILL.md")
+	skill, err := ParseFS(fsys, "audit/SKILL.md")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -61,7 +61,7 @@ Read the repository.
 
 func TestParseDirectoryPath(t *testing.T) {
 	fsys := fstest.MapFS{"lint/SKILL.md": {Data: []byte("---\nname: lint\ndescription: d\n---\nbody\n")}}
-	skill, err := Parse(fsys, "lint")
+	skill, err := ParseFS(fsys, "lint")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -75,7 +75,7 @@ func TestParsePlainMarkdown(t *testing.T) {
 		"prompts/review.md": {Data: []byte("# Review\n\nCheck the code.\n")},
 		"prompts/other.md":  {Data: []byte("x")},
 	}
-	skill, err := Parse(fsys, "prompts/review.md")
+	skill, err := ParseFS(fsys, "prompts/review.md")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -222,12 +222,12 @@ func TestParseBOMAndCRLF(t *testing.T) {
 
 func TestSourceHashIncludesSchema(t *testing.T) {
 	fsys := fstest.MapFS{"x/SKILL.md": {Data: []byte("---\nname: x\ndescription: d\n---\n")}}
-	without, err := Parse(fsys, "x")
+	without, err := ParseFS(fsys, "x")
 	if err != nil {
 		t.Fatal(err)
 	}
 	fsys["x/schema.json"] = &fstest.MapFile{Data: []byte("{}")}
-	with, err := Parse(fsys, "x")
+	with, err := ParseFS(fsys, "x")
 	if err != nil {
 		t.Fatal(err)
 	}
