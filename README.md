@@ -19,7 +19,7 @@ fmt.Println(skill.Name, skill.Description)
 fmt.Println(skill.Files, skill.HasScripts())
 ```
 
-`Parse` accepts a `SKILL.md` path, the directory holding one, or a standalone markdown file such as `review.md`, and sets `skill.SourcePath` to the absolute directory. `ParseFS(fsys, name)` does the same against an `fs.FS`, with `skill.Dir` relative to it. Spec violations (name format, field lengths, a name that differs from its directory) are recorded in `skill.Warnings` and the skill still loads, as the spec's client guide recommends. Invalid YAML is an error.
+`Parse` accepts a `SKILL.md` path, the directory holding one, or a standalone markdown file such as `review.md`, and sets `skill.SourcePath` to the absolute directory. `ParseFS(fsys, name)` does the same against an `fs.FS`, with `skill.Dir` relative to it. A `SKILL.md` or `schema.json` larger than `MaxFileSize` (4 MiB) is refused rather than loaded, since package archives are untrusted input. Spec violations (name format, field lengths, a name that differs from its directory) are recorded in `skill.Warnings` and the skill still loads, as the spec's client guide recommends. Invalid YAML is an error.
 
 Frontmatter keys outside the spec, such as the `library` and `requires` fields TanStack Intent adds or Claude Code's `model`, are kept in `skill.Extra` rather than dropped, and each one adds a warning. `skill.SourceHash` is the SHA-256 of `SKILL.md` followed by any sibling `schema.json`.
 
@@ -52,11 +52,11 @@ if err := skills.ValidateName(skill.Name); err != nil {
 err := skills.Stage(nil, skill, workspace, filepath.Join(workspace, ".claude", "skills", skill.Name))
 ```
 
-`Stage` clears the destination, copies the skill's sibling files from `fsys` (or from `skill.SourcePath` when `fsys` is nil), and writes a rendered `SKILL.md` and `schema.json`. The destination must resolve inside the workspace after following symlinks, and symlinks in the source are refused. Check a name with `ValidateName` before building a destination from it, since `filepath.Join` cleans `../` away before `Stage` sees the path. Extra frontmatter keys are written by default; pass `skills.WithoutExtra()` to stage only spec fields, for example when the skill comes from a repository you are auditing.
+`Stage` clears the destination, copies the skill's sibling files from `fsys` (or from `skill.SourcePath` when `fsys` is nil), and writes a rendered `SKILL.md` and `schema.json`. Nested skill directories and `.git` are not copied, matching `skill.Files`. The destination must be strictly inside the workspace; every write goes through an `os.Root` opened on the workspace, so a symlink in the destination tree cannot redirect a write outside it, and symlinks in the source are refused. Check a name with `ValidateName` before building a destination from it, since `filepath.Join` cleans `../` away before `Stage` sees the path. Extra frontmatter keys are written by default; pass `skills.WithoutExtra()` to stage only spec fields, for example when the skill comes from a repository you are auditing.
 
 ### Other helpers
 
-`Render` writes a `Skill` back to `SKILL.md` bytes. `Concat` joins skill bodies into one prompt. `ValidateNamespace` rejects unknown keys under a vendor metadata prefix such as `scrutineer.`. `Match`, `PathIncluded` and friends implement doublestar globs for skills that scope themselves to parts of a repository, and `ParseRepoSpec` parses `owner/repo@ref` skill sources.
+`Render` writes a `Skill` back to `SKILL.md` bytes. `Concat` joins skill bodies into one prompt. `ValidateNamespace` rejects unknown keys under a vendor metadata prefix such as `scrutineer.`. `Match`, `PathIncluded` and `DirAllExcluded` implement doublestar globs for skills that scope themselves to parts of a repository; `.git` is always kept regardless of the pattern lists so git-aware skills can read history, and `ValidateGlob` rejects patterns with more than eight `**` segments. `ParseRepoSpec` parses `owner/repo@ref` skill sources.
 
 ## License
 

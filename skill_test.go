@@ -72,8 +72,9 @@ func TestParseDirectoryPath(t *testing.T) {
 
 func TestParsePlainMarkdown(t *testing.T) {
 	fsys := fstest.MapFS{
-		"prompts/review.md": {Data: []byte("# Review\n\nCheck the code.\n")},
-		"prompts/other.md":  {Data: []byte("x")},
+		"prompts/review.md":   {Data: []byte("# Review\n\nCheck the code.\n")},
+		"prompts/other.md":    {Data: []byte("x")},
+		"prompts/schema.json": {Data: []byte(`{"type":"object"}`)},
 	}
 	skill, err := ParseFS(fsys, "prompts/review.md")
 	if err != nil {
@@ -87,6 +88,23 @@ func TestParsePlainMarkdown(t *testing.T) {
 	}
 	if len(skill.Files) != 0 || len(skill.Warnings) != 0 {
 		t.Errorf("files = %v warnings = %v", skill.Files, skill.Warnings)
+	}
+	if skill.SchemaJSON != "" {
+		t.Errorf("standalone .md picked up a sibling schema.json: %q", skill.SchemaJSON)
+	}
+}
+
+func TestParseRejectsOversizedFile(t *testing.T) {
+	fsys := fstest.MapFS{"big/SKILL.md": {Data: make([]byte, MaxFileSize+1)}}
+	if _, err := ParseFS(fsys, "big"); err == nil || !strings.Contains(err.Error(), "limit") {
+		t.Fatalf("oversized SKILL.md: err = %v", err)
+	}
+	fsys = fstest.MapFS{
+		"x/SKILL.md":    {Data: []byte("---\nname: x\ndescription: d\n---\n")},
+		"x/schema.json": {Data: make([]byte, MaxFileSize+1)},
+	}
+	if _, err := ParseFS(fsys, "x"); err == nil || !strings.Contains(err.Error(), "limit") {
+		t.Fatalf("oversized schema.json: err = %v", err)
 	}
 }
 

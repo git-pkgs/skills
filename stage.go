@@ -8,7 +8,6 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"strings"
 )
 
 const (
@@ -35,7 +34,7 @@ func WithoutExtra() StageOption {
 // filepath.Join cleans "../x" away, so Stage cannot catch it afterwards.
 func ValidateName(name string) error {
 	if name == "" || !filepath.IsLocal(name) || filepath.Base(name) != name {
-		return fmt.Errorf("skills: skill name %q contains path separators", name)
+		return fmt.Errorf("skills: skill name %q is not a single path element", name)
 	}
 	return nil
 }
@@ -43,9 +42,12 @@ func ValidateName(name string) error {
 // Stage writes skill into destination on disk: its sibling files, a rendered
 // SKILL.md, and schema.json when set. Siblings are read from fsys under
 // skill.Dir, or from skill.SourcePath when fsys is nil.
-// destination is cleared first and must resolve, after following symlinks,
-// to a path inside workspace. Symlinks in the source are refused rather than
-// recreated.
+//
+// workspace is created if missing. destination must resolve to a path strictly
+// inside workspace and is cleared first. Every write goes through an
+// [os.Root] opened on workspace, so a symlink in or below the destination
+// cannot redirect a write outside it. Symlinks in the source are refused
+// rather than followed.
 func Stage(fsys fs.FS, skill *Skill, workspace, destination string, opts ...StageOption) error {
 	if skill == nil {
 		return errors.New("skills: skill is required")
@@ -62,13 +64,22 @@ func Stage(fsys fs.FS, skill *Skill, workspace, destination string, opts ...Stag
 	if workspace == "" {
 		return errors.New("skills: workspace is required")
 	}
-	if err := validateDestination(workspace, destination); err != nil {
+	rel, err := destinationInWorkspace(workspace, destination)
+	if err != nil {
 		return err
 	}
-	if err := os.RemoveAll(destination); err != nil {
+	if err := os.MkdirAll(workspace, dirPerm); err != nil {
+		return fmt.Errorf("skills: create workspace: %w", err)
+	}
+	root, err := os.OpenRoot(workspace)
+	if err != nil {
+		return fmt.Errorf("skills: open workspace: %w", err)
+	}
+	defer func() { _ = root.Close() }()
+	if err := root.RemoveAll(rel); err != nil {
 		return fmt.Errorf("skills: clear destination: %w", err)
 	}
-	if err := os.MkdirAll(destination, dirPerm); err != nil {
+	if err := root.MkdirAll(rel, dirPerm); err != nil {
 		return fmt.Errorf("skills: create destination: %w", err)
 	}
 	source, dir := fsys, skill.Dir
@@ -76,7 +87,7 @@ func Stage(fsys fs.FS, skill *Skill, workspace, destination string, opts ...Stag
 		source, dir = os.DirFS(skill.SourcePath), "."
 	}
 	if source != nil && dir != "" {
-		if err := copySiblings(source, dir, destination); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		if err := copySiblings(source, dir, root, rel); err != nil && !errors.Is(err, fs.ErrNotExist) {
 			return fmt.Errorf("skills: copy siblings: %w", err)
 		}
 	}
@@ -84,108 +95,66 @@ func Stage(fsys fs.FS, skill *Skill, workspace, destination string, opts ...Stag
 	if err != nil {
 		return err
 	}
-	if err := os.WriteFile(filepath.Join(destination, Filename), content, filePerm); err != nil {
+	if err := root.WriteFile(filepath.Join(rel, Filename), content, filePerm); err != nil {
 		return fmt.Errorf("skills: write SKILL.md: %w", err)
 	}
 	if skill.SchemaJSON != "" {
-		if err := os.WriteFile(filepath.Join(destination, schemaFilename), []byte(skill.SchemaJSON), filePerm); err != nil {
+		if err := root.WriteFile(filepath.Join(rel, schemaFilename), []byte(skill.SchemaJSON), filePerm); err != nil {
 			return fmt.Errorf("skills: write schema.json: %w", err)
 		}
 	}
 	return nil
 }
 
-func validateDestination(workspace, destination string) error {
-	root, err := realAbs(workspace)
+func destinationInWorkspace(workspace, destination string) (string, error) {
+	ws, err := filepath.Abs(workspace)
 	if err != nil {
-		return err
+		return "", fmt.Errorf("skills: resolve workspace: %w", err)
 	}
-	target, err := realAbs(destination)
+	dest, err := filepath.Abs(destination)
 	if err != nil {
-		return err
+		return "", fmt.Errorf("skills: resolve destination: %w", err)
 	}
-	rel, err := filepath.Rel(root, target)
-	if err != nil {
-		return err
+	rel, err := filepath.Rel(ws, dest)
+	if err != nil || rel == "." || !filepath.IsLocal(rel) {
+		return "", fmt.Errorf("skills: destination %q is outside the workspace", destination)
 	}
-	if rel == "." || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-		return fmt.Errorf("skills: destination %q is outside the workspace", destination)
-	}
-	return nil
+	return rel, nil
 }
 
-// realAbs resolves symlinks in the deepest existing ancestor of p and rejoins
-// the missing tail. filepath.Abs alone would let a workspace containing
-// .claude/skills -> /elsewhere pass validation while RemoveAll and WriteFile
-// follow the link.
-func realAbs(p string) (string, error) {
-	abs, err := filepath.Abs(p)
-	if err != nil {
-		return "", err
-	}
-	existing := abs
-	var tail []string
-	for {
-		if _, err := os.Lstat(existing); err == nil {
-			break
-		}
-		tail = append([]string{filepath.Base(existing)}, tail...)
-		parent := filepath.Dir(existing)
-		if parent == existing {
-			break
-		}
-		existing = parent
-	}
-	resolved, err := filepath.EvalSymlinks(existing)
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(append([]string{resolved}, tail...)...), nil
-}
-
-func copySiblings(fsys fs.FS, dir, destination string) error {
-	return fs.WalkDir(fsys, dir, func(p string, entry fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if p == dir {
-			return nil
-		}
-		rel := strings.TrimPrefix(p, dir+"/")
-		if dir == "." {
-			rel = p
-		}
-		if rel == Filename || rel == gitMetadataDir {
-			if entry.IsDir() {
-				return fs.SkipDir
-			}
-			return nil
-		}
-		target := filepath.Join(destination, filepath.FromSlash(rel))
+// copySiblings writes the skill's sibling files into root at rel. It walks the
+// same tree as listFiles so Files and the staged tree agree. schema.json is
+// skipped: Stage writes skill.SchemaJSON afterwards, which may have been
+// bundled or edited since parsing.
+func copySiblings(fsys fs.FS, dir string, root *os.Root, rel string) error {
+	return walkSiblings(fsys, dir, func(name string, entry fs.DirEntry) error {
+		target := filepath.Join(rel, filepath.FromSlash(name))
 		switch {
 		case entry.Type()&fs.ModeSymlink != 0:
-			return fmt.Errorf("symlink %q not staged", p)
+			return fmt.Errorf("symlink %q not staged", path.Join(dir, name))
 		case entry.IsDir():
-			return os.MkdirAll(target, dirPerm)
+			return root.MkdirAll(target, dirPerm)
+		case name == schemaFilename:
+			return nil
 		case entry.Type().IsRegular():
-			return copyFile(fsys, p, target)
+			return copyFile(fsys, path.Join(dir, name), root, target)
 		default:
-			return fmt.Errorf("unsupported file type %s", p)
+			return fmt.Errorf("unsupported file type at %s", path.Join(dir, name))
 		}
 	})
 }
 
-func copyFile(fsys fs.FS, name, destination string) error {
-	mode := fs.FileMode(filePerm)
-	if info, err := fs.Stat(fsys, name); err == nil && info.Mode().Perm() != 0 {
-		mode = info.Mode().Perm()
-	}
-	input, err := fsys.Open(path.Clean(name))
+func copyFile(fsys fs.FS, name string, root *os.Root, target string) error {
+	input, err := fsys.Open(name)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = input.Close() }()
-	output, err := os.OpenFile(destination, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, mode)
+	mode := fs.FileMode(filePerm)
+	if info, err := input.Stat(); err == nil && info.Mode().Perm() != 0 {
+		mode = info.Mode().Perm()
+	}
+	output, err := root.OpenFile(target, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, mode)
 	if err != nil {
 		return err
 	}

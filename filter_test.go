@@ -4,6 +4,7 @@ import (
 	"errors"
 	"path"
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -35,6 +36,9 @@ func TestValidateGlob(t *testing.T) {
 	}
 	if err := ValidateGlob("[broken"); !errors.Is(err, path.ErrBadPattern) {
 		t.Errorf("ValidateGlob() error = %v", err)
+	}
+	if err := ValidateGlob(strings.Repeat("**/", maxDoublestar+1) + "x"); !errors.Is(err, path.ErrBadPattern) {
+		t.Errorf("ValidateGlob() for many ** = %v", err)
 	}
 }
 

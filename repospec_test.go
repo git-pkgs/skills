@@ -23,6 +23,11 @@ func TestParseRepoSpec(t *testing.T) {
 			wantRef: "v1.2.3",
 		},
 		{
+			raw:     "owner/repo@refs/heads/main",
+			wantURL: "https://github.com/owner/repo",
+			wantRef: "refs/heads/main",
+		},
+		{
 			raw:     "https://git.example.test/team/repo@main",
 			wantURL: "https://git.example.test/team/repo",
 			wantRef: "main",

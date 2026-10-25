@@ -46,6 +46,9 @@ func Render(skill *Skill) ([]byte, error) {
 	}
 	keys := make([]string, 0, len(skill.Extra))
 	for key := range skill.Extra {
+		if specKeys[key] {
+			continue
+		}
 		keys = append(keys, key)
 	}
 	slices.Sort(keys)

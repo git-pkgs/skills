@@ -1,6 +1,7 @@
 package skills
 
 import (
+	"strings"
 	"testing"
 	"testing/fstest"
 )
@@ -61,6 +62,20 @@ func TestRenderBodyOnly(t *testing.T) {
 func TestRenderNil(t *testing.T) {
 	if _, err := Render(nil); err == nil {
 		t.Fatal("expected error")
+	}
+}
+
+func TestRenderSkipsSpecKeyInExtra(t *testing.T) {
+	skill := &Skill{Name: "x", Description: "d", Extra: map[string]any{"name": "evil", "library": "lib"}}
+	out, err := Render(skill)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(out), "evil") || strings.Count(string(out), "name:") != 1 {
+		t.Errorf("Render emitted a spec key from Extra:\n%s", out)
+	}
+	if !strings.Contains(string(out), "library: lib") {
+		t.Errorf("Render dropped a non-spec Extra key:\n%s", out)
 	}
 }
 

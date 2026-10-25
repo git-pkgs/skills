@@ -7,31 +7,38 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 	"strings"
 )
 
 // DefaultMaxDepth bounds how many directories below the root Walk descends.
 const DefaultMaxDepth = 6
 
-// DefaultSkipDirs are directory names Walk never enters: VCS metadata and
-// vendored dependency trees whose skills belong to some other package.
-var DefaultSkipDirs = []string{gitMetadataDir, "node_modules", ".venv", "__pycache__", "vendor"}
+var defaultSkipDirs = []string{gitMetadataDir, "node_modules", ".venv", "__pycache__", "vendor"}
+
+// DefaultSkipDirs returns the directory names Walk never enters by default:
+// VCS metadata and vendored dependency trees whose skills belong to another
+// package. The slice is a copy; append to it and pass to WithSkipDirs to
+// extend the set.
+func DefaultSkipDirs() []string {
+	return slices.Clone(defaultSkipDirs)
+}
 
 type walkConfig struct {
 	maxDepth int
 	skipDirs map[string]bool
 }
 
-// Option configures Walk and Discover.
-type Option func(*walkConfig)
+// WalkOption configures Walk, WalkFS and Discover.
+type WalkOption func(*walkConfig)
 
 // WithMaxDepth sets the maximum directory depth below the root.
-func WithMaxDepth(depth int) Option {
+func WithMaxDepth(depth int) WalkOption {
 	return func(c *walkConfig) { c.maxDepth = depth }
 }
 
-// WithSkipDirs replaces DefaultSkipDirs.
-func WithSkipDirs(names ...string) Option {
+// WithSkipDirs replaces the default skip set.
+func WithSkipDirs(names ...string) WalkOption {
 	return func(c *walkConfig) {
 		c.skipDirs = make(map[string]bool, len(names))
 		for _, name := range names {
@@ -40,9 +47,9 @@ func WithSkipDirs(names ...string) Option {
 	}
 }
 
-func newWalkConfig(opts []Option) walkConfig {
+func newWalkConfig(opts []WalkOption) walkConfig {
 	c := walkConfig{maxDepth: DefaultMaxDepth}
-	WithSkipDirs(DefaultSkipDirs...)(&c)
+	WithSkipDirs(defaultSkipDirs...)(&c)
 	for _, opt := range opts {
 		opt(&c)
 	}
@@ -52,7 +59,10 @@ func newWalkConfig(opts []Option) walkConfig {
 // WalkFS calls fn for each SKILL.md under root in fsys, in lexical order. A
 // parse failure is passed to fn with a nil skill; returning it stops the
 // walk, returning nil skips that skill. Unreadable directories are skipped.
-func WalkFS(fsys fs.FS, root string, fn func(*Skill, error) error, opts ...Option) error {
+//
+// Each skill's directory is walked a second time to populate Files, so an
+// fs.FS backed by a sequential archive should cache its entry list.
+func WalkFS(fsys fs.FS, root string, fn func(*Skill, error) error, opts ...WalkOption) error {
 	if fn == nil {
 		return errors.New("skills: walk callback is required")
 	}
@@ -65,7 +75,7 @@ func WalkFS(fsys fs.FS, root string, fn func(*Skill, error) error, opts ...Optio
 
 // walkFS is WalkFS without the error prefix. label is passed to parseFS so
 // disk callers see absolute paths in parse errors.
-func walkFS(fsys fs.FS, root, label string, fn func(*Skill, error) error, opts []Option) error {
+func walkFS(fsys fs.FS, root, label string, fn func(*Skill, error) error, opts []WalkOption) error {
 	cfg := newWalkConfig(opts)
 	return fs.WalkDir(fsys, root, func(p string, entry fs.DirEntry, err error) error {
 		if err != nil {
@@ -89,7 +99,7 @@ func walkFS(fsys fs.FS, root, label string, fn func(*Skill, error) error, opts [
 
 // Walk calls fn for each SKILL.md under root on disk, with SourcePath set.
 // It stops at the first parse error or error returned by fn.
-func Walk(root string, fn func(*Skill) error, opts ...Option) error {
+func Walk(root string, fn func(*Skill) error, opts ...WalkOption) error {
 	if fn == nil {
 		return errors.New("skills: walk callback is required")
 	}
@@ -113,7 +123,7 @@ func Walk(root string, fn func(*Skill) error, opts ...Option) error {
 // Discover returns every skill under the root of fsys. Skills that fail to
 // parse are left out and their errors joined into the returned error, so a
 // single bad SKILL.md does not hide the rest.
-func Discover(fsys fs.FS, opts ...Option) ([]*Skill, error) {
+func Discover(fsys fs.FS, opts ...WalkOption) ([]*Skill, error) {
 	var found []*Skill
 	var errs []error
 	err := WalkFS(fsys, ".", func(skill *Skill, err error) error {

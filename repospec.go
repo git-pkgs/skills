@@ -9,7 +9,10 @@ import (
 // ParseRepoSpec splits an HTTPS repository specification into its clone URL
 // and optional ref.
 //
-// Accepted forms are owner/repo[@ref] and https://host/path/repo[@ref].
+// Accepted forms are owner/repo[@ref] and https://host/path/repo[@ref]. In
+// the shorthand form the ref may contain slashes; in the URL form a ref is
+// only recognised after the final path segment, so a slashed ref must use
+// the shorthand.
 func ParseRepoSpec(raw string) (url, ref string, err error) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {

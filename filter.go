@@ -1,6 +1,7 @@
 package skills
 
 import (
+	"fmt"
 	"path"
 	"slices"
 	"strings"
@@ -49,12 +50,24 @@ func matchAny(patterns []string, name string) bool {
 	})
 }
 
-// ValidateGlob returns path.ErrBadPattern for a malformed segment.
+const maxDoublestar = 8
+
+// ValidateGlob returns path.ErrBadPattern for a malformed segment or a
+// pattern with more than eight ** segments. Match is not linear in the number
+// of ** segments; validate untrusted patterns before matching them against a
+// large tree.
 func ValidateGlob(pattern string) error {
+	doublestar := 0
 	for segment := range strings.SplitSeq(pattern, "/") {
+		if segment == "**" {
+			doublestar++
+		}
 		if _, err := path.Match(segment, "x"); err != nil {
 			return err
 		}
+	}
+	if doublestar > maxDoublestar {
+		return fmt.Errorf("%w: more than %d ** segments", path.ErrBadPattern, maxDoublestar)
 	}
 	return nil
 }

@@ -127,6 +127,32 @@ func TestStageRejectsSourceSymlink(t *testing.T) {
 	}
 }
 
+func TestStageSkipsNestedSkillAndGit(t *testing.T) {
+	src := t.TempDir()
+	writeFile(t, filepath.Join(src, "group", Filename), "---\nname: group\ndescription: d\n---\nbody\n")
+	writeFile(t, filepath.Join(src, "group", "notes.md"), "notes")
+	writeFile(t, filepath.Join(src, "group", "two", Filename), "---\nname: two\ndescription: d\n---\nbody\n")
+	writeFile(t, filepath.Join(src, "group", "two", "scripts", "run.sh"), "#!/bin/sh\n")
+	writeFile(t, filepath.Join(src, "group", "sub", ".git", "config"), "x")
+	skill, err := Parse(filepath.Join(src, "group"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	workspace := t.TempDir()
+	destination := filepath.Join(workspace, "skills", "group")
+	if err := Stage(nil, skill, workspace, destination); err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range []string{"two", "sub/.git"} {
+		if _, err := os.Stat(filepath.Join(destination, filepath.FromSlash(p))); !os.IsNotExist(err) {
+			t.Errorf("%s was staged", p)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(destination, "notes.md")); err != nil {
+		t.Errorf("notes.md not staged: %v", err)
+	}
+}
+
 func TestStageExtraKeys(t *testing.T) {
 	skill, err := ParseBytes([]byte("---\nname: x\ndescription: d\nmodel: opus\n---\nbody\n"), "x/SKILL.md")
 	if err != nil {

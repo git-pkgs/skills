@@ -109,12 +109,6 @@ func TestWalkSubtree(t *testing.T) {
 	}
 }
 
-func TestWalkMissingRoot(t *testing.T) {
-	if err := WalkFS(fstest.MapFS{}, "nope", func(*Skill, error) error { return nil }); err == nil {
-		t.Fatal("expected error for missing root")
-	}
-}
-
 func TestDiscoverKeepsMissingDescription(t *testing.T) {
 	fsys := fstest.MapFS{
 		"good/SKILL.md":   skillDoc("good"),
@@ -136,5 +130,13 @@ func TestWalkFSRootError(t *testing.T) {
 	err := WalkFS(fstest.MapFS{}, "nope", func(*Skill, error) error { return nil })
 	if err == nil || strings.Count(err.Error(), "skills: walk") != 1 {
 		t.Errorf("err = %v", err)
+	}
+}
+
+func TestDefaultSkipDirsIsCopy(t *testing.T) {
+	a := DefaultSkipDirs()
+	a[0] = "mutated"
+	if b := DefaultSkipDirs(); b[0] == "mutated" || !slices.Contains(b, gitMetadataDir) {
+		t.Errorf("DefaultSkipDirs() shares backing storage: %v", b)
 	}
 }

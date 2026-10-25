@@ -25,7 +25,11 @@ const SpecURL = "https://agentskills.io/specification"
 
 const (
 	// Filename is the instruction file that marks a skill directory.
-	Filename       = "SKILL.md"
+	Filename = "SKILL.md"
+	// MaxFileSize bounds the SKILL.md and schema.json this package reads
+	// into memory. Package archives are untrusted; a larger file is refused
+	// rather than loaded.
+	MaxFileSize    = 4 << 20
 	schemaFilename = "schema.json"
 	scriptsDir     = "scripts"
 	maxNameLen     = 64
@@ -138,21 +142,21 @@ func parseFS(fsys fs.FS, name, label string) (*Skill, error) {
 		}
 		return filepath.Join(label, filepath.FromSlash(p))
 	}
-	raw, err := fs.ReadFile(fsys, name)
+	raw, err := readLimited(fsys, name)
 	if err != nil {
 		return nil, fmt.Errorf("skills: read %s: %w", show(name), err)
-	}
-	schema, err := fs.ReadFile(fsys, path.Join(dir, schemaFilename))
-	if err != nil && !isNotExist(err) {
-		return nil, fmt.Errorf("skills: read %s: %w", show(path.Join(dir, schemaFilename)), err)
 	}
 	skill, err := ParseBytes(raw, name)
 	if err != nil {
 		return nil, fmt.Errorf("skills: %s: %w", show(name), err)
 	}
-	skill.SchemaJSON = string(schema)
-	skill.SourceHash = hash(raw, schema)
 	if isSkillFile(name) {
+		schema, err := readLimited(fsys, path.Join(dir, schemaFilename))
+		if err != nil && !isNotExist(err) {
+			return nil, fmt.Errorf("skills: read %s: %w", show(path.Join(dir, schemaFilename)), err)
+		}
+		skill.SchemaJSON = string(schema)
+		skill.SourceHash = hash(raw, schema)
 		if skill.Files, err = listFiles(fsys, dir); err != nil {
 			return nil, fmt.Errorf("skills: list %s: %w", show(dir), err)
 		}
@@ -250,10 +254,24 @@ func splitFrontmatter(raw []byte) ([]byte, string, bool) {
 	return match[1], string(match[2]), true
 }
 
+func readLimited(fsys fs.FS, name string) ([]byte, error) {
+	info, err := fs.Stat(fsys, name)
+	if err != nil {
+		return nil, err
+	}
+	if info.Size() > MaxFileSize {
+		return nil, fmt.Errorf("%d bytes exceeds the %d-byte limit", info.Size(), MaxFileSize)
+	}
+	return fs.ReadFile(fsys, name)
+}
+
+// hash writes a NUL after each part so the boundary between SKILL.md and
+// schema.json is fixed.
 func hash(parts ...[]byte) string {
 	hasher := sha256.New()
 	for _, part := range parts {
 		_, _ = hasher.Write(part)
+		_, _ = hasher.Write([]byte{0})
 	}
 	return hex.EncodeToString(hasher.Sum(nil))
 }
@@ -307,13 +325,18 @@ func inferredName(name string) string {
 	return strings.TrimSuffix(base, path.Ext(base))
 }
 
-// listFiles lists files under dir, stopping at .git and at nested skill
-// directories, whose files belong to that skill.
-func listFiles(fsys fs.FS, dir string) ([]string, error) {
-	var files []string
-	err := fs.WalkDir(fsys, dir, func(p string, entry fs.DirEntry, err error) error {
+// walkSiblings visits the files that belong to a skill at dir: everything
+// under it except SKILL.md, .git at any depth, and nested skill directories,
+// whose files belong to that nested skill. listFiles and copySiblings share
+// this walk so Files and the staged tree cannot disagree.
+func walkSiblings(fsys fs.FS, dir string, fn func(rel string, entry fs.DirEntry) error) error {
+	return fs.WalkDir(fsys, dir, func(p string, entry fs.DirEntry, err error) error {
 		if err != nil {
 			return err
+		}
+		rel := strings.TrimPrefix(p, dir+"/")
+		if dir == "." {
+			rel = p
 		}
 		if entry.IsDir() {
 			if p == dir {
@@ -325,13 +348,19 @@ func listFiles(fsys fs.FS, dir string) ([]string, error) {
 			if _, err := fs.Stat(fsys, path.Join(p, Filename)); err == nil {
 				return fs.SkipDir
 			}
+			return fn(rel, entry)
+		}
+		if rel == Filename {
 			return nil
 		}
-		rel := strings.TrimPrefix(p, dir+"/")
-		if dir == "." {
-			rel = p
-		}
-		if rel != Filename {
+		return fn(rel, entry)
+	})
+}
+
+func listFiles(fsys fs.FS, dir string) ([]string, error) {
+	var files []string
+	err := walkSiblings(fsys, dir, func(rel string, entry fs.DirEntry) error {
+		if !entry.IsDir() {
 			files = append(files, rel)
 		}
 		return nil
