@@ -80,31 +80,41 @@ func Match(pattern, name string) bool {
 	return matchSegments(strings.Split(pattern, "/"), strings.Split(name, "/"))
 }
 
+// matchSegments reports whether name matches the pattern segments. Every
+// recursive call is on a strictly shorter suffix pair, so the walk is a DAG
+// over (pattern suffix, name suffix); memoising on the suffix lengths keeps a
+// pattern with several ** segments at len(pattern) × len(name) segment
+// comparisons instead of revisiting each pair once per earlier **.
 func matchSegments(pattern, name []string) bool {
-	for len(pattern) > 0 {
-		if pattern[0] == "**" {
+	type suffixes struct{ pattern, name int }
+	seen := make(map[suffixes]bool, (len(pattern)+1)*(len(name)+1))
+	var walk func(pattern, name []string) bool
+	walk = func(pattern, name []string) bool {
+		key := suffixes{len(pattern), len(name)}
+		if hit, ok := seen[key]; ok {
+			return hit
+		}
+		var matched bool
+		switch {
+		case len(pattern) == 0:
+			matched = len(name) == 0
+		case pattern[0] == "**":
 			rest := pattern[1:]
 			if len(rest) == 0 {
-				return true
-			}
-			for index := 0; index <= len(name); index++ {
-				if matchSegments(rest, name[index:]) {
-					return true
+				matched = true
+			} else {
+				for index := 0; index <= len(name) && !matched; index++ {
+					matched = walk(rest, name[index:])
 				}
 			}
-			return false
+		case len(name) > 0:
+			ok, _ := path.Match(pattern[0], name[0])
+			matched = ok && walk(pattern[1:], name[1:])
 		}
-		if len(name) == 0 {
-			return false
-		}
-		ok, _ := path.Match(pattern[0], name[0])
-		if !ok {
-			return false
-		}
-		pattern = pattern[1:]
-		name = name[1:]
+		seen[key] = matched
+		return matched
 	}
-	return len(name) == 0
+	return walk(pattern, name)
 }
 
 // SplitPatterns parses the newline-separated storage form into a clean slice,
