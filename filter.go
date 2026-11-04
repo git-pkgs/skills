@@ -80,9 +80,7 @@ func Match(pattern, name string) bool {
 	return matchSegments(strings.Split(pattern, "/"), strings.Split(name, "/"))
 }
 
-// matchSegments reports whether name matches the pattern segments. Segments
-// ahead of the first ** pair off one to one, so the plain loop runs until then
-// and only the ** tail pays for memoisation.
+// Plain loop until the first **; only the ** tail is memoised.
 func matchSegments(pattern, name []string) bool {
 	for len(pattern) > 0 && pattern[0] != "**" {
 		if len(name) == 0 {
@@ -100,8 +98,7 @@ func matchSegments(pattern, name []string) bool {
 	return matchTail(pattern, name)
 }
 
-// matchTail walks the segments from the first **, memoised on suffix lengths
-// so several ** segments stay at len(pattern) × len(name) comparisons.
+// Memoised on suffix lengths so several ** segments stay at len(pattern)*len(name).
 func matchTail(pattern, name []string) bool {
 	width := len(name) + 1
 	seen := make([]int8, (len(pattern)+1)*width) // 0 unknown, 1 no match, 2 match
