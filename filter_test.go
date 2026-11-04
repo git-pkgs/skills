@@ -51,10 +51,7 @@ func TestMatchManyDoublestar(t *testing.T) {
 	}
 }
 
-// A pattern with the maximum number of ** segments against a long name used to
-// revisit every (pattern-suffix, name-suffix) pair once per earlier **, which
-// on 300 segments exceeds a 30s budget; memoised, it stays in the segment
-// count and returns immediately.
+// Guards the memoised ** tail against going exponential on a long name.
 func TestMatchManyDoublestarStaysBounded(t *testing.T) {
 	t.Parallel()
 

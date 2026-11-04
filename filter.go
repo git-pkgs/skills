@@ -80,19 +80,36 @@ func Match(pattern, name string) bool {
 	return matchSegments(strings.Split(pattern, "/"), strings.Split(name, "/"))
 }
 
-// matchSegments reports whether name matches the pattern segments. Every
-// recursive call is on a strictly shorter suffix pair, so the walk is a DAG
-// over (pattern suffix, name suffix); memoising on the suffix lengths keeps a
-// pattern with several ** segments at len(pattern) × len(name) segment
-// comparisons instead of revisiting each pair once per earlier **.
+// matchSegments reports whether name matches the pattern segments. Segments
+// ahead of the first ** pair off one to one, so the plain loop runs until then
+// and only the ** tail pays for memoisation.
 func matchSegments(pattern, name []string) bool {
-	type suffixes struct{ pattern, name int }
-	seen := make(map[suffixes]bool, (len(pattern)+1)*(len(name)+1))
+	for len(pattern) > 0 && pattern[0] != "**" {
+		if len(name) == 0 {
+			return false
+		}
+		ok, _ := path.Match(pattern[0], name[0])
+		if !ok {
+			return false
+		}
+		pattern, name = pattern[1:], name[1:]
+	}
+	if len(pattern) == 0 {
+		return len(name) == 0
+	}
+	return matchTail(pattern, name)
+}
+
+// matchTail walks the segments from the first **, memoised on suffix lengths
+// so several ** segments stay at len(pattern) × len(name) comparisons.
+func matchTail(pattern, name []string) bool {
+	width := len(name) + 1
+	seen := make([]int8, (len(pattern)+1)*width) // 0 unknown, 1 no match, 2 match
 	var walk func(pattern, name []string) bool
 	walk = func(pattern, name []string) bool {
-		key := suffixes{len(pattern), len(name)}
-		if hit, ok := seen[key]; ok {
-			return hit
+		key := len(pattern)*width + len(name)
+		if hit := seen[key]; hit != 0 {
+			return hit == 2
 		}
 		var matched bool
 		switch {
@@ -111,7 +128,11 @@ func matchSegments(pattern, name []string) bool {
 			ok, _ := path.Match(pattern[0], name[0])
 			matched = ok && walk(pattern[1:], name[1:])
 		}
-		seen[key] = matched
+		if matched {
+			seen[key] = 2
+		} else {
+			seen[key] = 1
+		}
 		return matched
 	}
 	return walk(pattern, name)
