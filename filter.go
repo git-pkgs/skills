@@ -80,20 +80,9 @@ func Match(pattern, name string) bool {
 	return matchSegments(strings.Split(pattern, "/"), strings.Split(name, "/"))
 }
 
+// Plain loop until the first **; only the ** tail is memoised.
 func matchSegments(pattern, name []string) bool {
-	for len(pattern) > 0 {
-		if pattern[0] == "**" {
-			rest := pattern[1:]
-			if len(rest) == 0 {
-				return true
-			}
-			for index := 0; index <= len(name); index++ {
-				if matchSegments(rest, name[index:]) {
-					return true
-				}
-			}
-			return false
-		}
+	for len(pattern) > 0 && pattern[0] != "**" {
 		if len(name) == 0 {
 			return false
 		}
@@ -101,10 +90,49 @@ func matchSegments(pattern, name []string) bool {
 		if !ok {
 			return false
 		}
-		pattern = pattern[1:]
-		name = name[1:]
+		pattern, name = pattern[1:], name[1:]
 	}
-	return len(name) == 0
+	if len(pattern) == 0 {
+		return len(name) == 0
+	}
+	return matchTail(pattern, name)
+}
+
+// Memoised on suffix lengths so several ** segments stay at len(pattern)*len(name).
+func matchTail(pattern, name []string) bool {
+	width := len(name) + 1
+	seen := make([]int8, (len(pattern)+1)*width) // 0 unknown, 1 no match, 2 match
+	var walk func(pattern, name []string) bool
+	walk = func(pattern, name []string) bool {
+		key := len(pattern)*width + len(name)
+		if hit := seen[key]; hit != 0 {
+			return hit == 2
+		}
+		var matched bool
+		switch {
+		case len(pattern) == 0:
+			matched = len(name) == 0
+		case pattern[0] == "**":
+			rest := pattern[1:]
+			if len(rest) == 0 {
+				matched = true
+			} else {
+				for index := 0; index <= len(name) && !matched; index++ {
+					matched = walk(rest, name[index:])
+				}
+			}
+		case len(name) > 0:
+			ok, _ := path.Match(pattern[0], name[0])
+			matched = ok && walk(pattern[1:], name[1:])
+		}
+		if matched {
+			seen[key] = 2
+		} else {
+			seen[key] = 1
+		}
+		return matched
+	}
+	return walk(pattern, name)
 }
 
 // SplitPatterns parses the newline-separated storage form into a clean slice,
