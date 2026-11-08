@@ -175,3 +175,56 @@ func TestWalkDiskErrorShowsAbsolutePath(t *testing.T) {
 		t.Fatalf("err = %v", err)
 	}
 }
+
+func TestParseDiskConfinesSymlinks(t *testing.T) {
+	base := t.TempDir()
+	outside := filepath.Join(base, "outside", "secret.json")
+	writeFile(t, outside, `{"secret":true}`)
+	skillMD := "---\nname: audit\ndescription: Audit\n---\nCheck it.\n"
+
+	cases := []struct {
+		name, link, target string
+	}{
+		{"absolute-schema", schemaFilename, outside},
+		{"relative-schema", schemaFilename, filepath.Join("..", "..", "outside", "secret.json")},
+		{"skill-file", Filename, outside},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := filepath.Join(base, tc.name, "audit")
+			if err := os.MkdirAll(dir, dirPerm); err != nil {
+				t.Fatal(err)
+			}
+			if tc.link != Filename {
+				writeFile(t, filepath.Join(dir, Filename), skillMD)
+			}
+			if err := os.Symlink(tc.target, filepath.Join(dir, tc.link)); err != nil {
+				t.Skip("symlinks unsupported:", err)
+			}
+			if _, err := os.Stat(filepath.Join(dir, tc.link)); err != nil {
+				t.Fatalf("fixture link does not resolve: %v", err)
+			}
+			skill, err := Parse(dir)
+			if err == nil {
+				t.Fatalf("Parse followed %s out of the collection: schema = %q", tc.link, skill.SchemaJSON)
+			}
+		})
+	}
+
+	t.Run("inside-collection", func(t *testing.T) {
+		root := t.TempDir()
+		writeFile(t, filepath.Join(root, "shared", schemaFilename), `{"type":"object"}`)
+		dir := filepath.Join(root, "audit")
+		writeFile(t, filepath.Join(dir, Filename), skillMD)
+		if err := os.Symlink(filepath.Join("..", "shared", schemaFilename), filepath.Join(dir, schemaFilename)); err != nil {
+			t.Skip("symlinks unsupported:", err)
+		}
+		skill, err := Parse(dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if skill.SchemaJSON != `{"type":"object"}` {
+			t.Errorf("schema = %q", skill.SchemaJSON)
+		}
+	})
+}

@@ -120,7 +120,13 @@ func Parse(p string) (*Skill, error) {
 	if root == dir {
 		name = filepath.Base(abs)
 	}
-	skill, err := parseFS(os.DirFS(root), name, root)
+	// os.Root refuses symlinks that leave root, which os.DirFS follows.
+	r, err := os.OpenRoot(root)
+	if err != nil {
+		return nil, fmt.Errorf("skills: open %s: %w", root, err)
+	}
+	defer func() { _ = r.Close() }()
+	skill, err := parseFS(r.FS(), name, root)
 	if err != nil {
 		return nil, err
 	}
