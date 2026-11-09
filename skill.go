@@ -119,9 +119,13 @@ func Parse(p string) (*Skill, error) {
 	if err != nil {
 		return nil, fmt.Errorf("skills: resolve %s: %w", dir, err)
 	}
-	root := filepath.Dir(resolved)
+	root, target := filepath.Dir(resolved), filepath.Base(resolved)
+	// A skill directory linked from outside its collection may only read itself.
+	if parent, err := filepath.EvalSymlinks(filepath.Dir(dir)); err != nil || parent != root {
+		root, target = resolved, "."
+	}
 	name := filepath.Base(dir) + "/" + filepath.Base(abs)
-	if root == resolved {
+	if filepath.Dir(dir) == dir {
 		name = filepath.Base(abs)
 	}
 	// os.Root refuses symlinks that leave root, which os.DirFS follows.
@@ -131,7 +135,7 @@ func Parse(p string) (*Skill, error) {
 	}
 	defer func() { _ = r.Close() }()
 	fsys := r.FS()
-	if link, target := filepath.Base(dir), filepath.Base(resolved); link != target {
+	if link := filepath.Base(dir); link != target {
 		fsys = renamedFS{fsys, link, target}
 	}
 	skill, err := parseFS(fsys, name, filepath.Dir(dir))
@@ -150,7 +154,7 @@ type renamedFS struct {
 
 func (r renamedFS) Open(name string) (fs.File, error) {
 	if rest, ok := strings.CutPrefix(name, r.link); ok && (rest == "" || rest[0] == '/') {
-		name = r.target + rest
+		name = path.Join(r.target, rest)
 	}
 	return r.FS.Open(name)
 }

@@ -259,6 +259,35 @@ func TestParseDiskConfinesSymlinks(t *testing.T) {
 		if skill, err := Parse(link); err == nil {
 			t.Fatalf("Parse followed schema.json out of the linked skill: schema = %q", skill.SchemaJSON)
 		}
+		writeFile(t, filepath.Join(base, "code", "other", "secret.json"), `{"secret":true}`)
+		if err := os.Remove(filepath.Join(target, schemaFilename)); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink(filepath.Join("..", "other", "secret.json"), filepath.Join(target, schemaFilename)); err != nil {
+			t.Fatal(err)
+		}
+		if skill, err := Parse(link); err == nil {
+			t.Fatalf("Parse followed schema.json into a sibling of the linked skill: schema = %q", skill.SchemaJSON)
+		}
+	})
+
+	t.Run("linked-skill-dir-inside-collection", func(t *testing.T) {
+		root := t.TempDir()
+		writeFile(t, filepath.Join(root, "shared", schemaFilename), `{"type":"object"}`)
+		writeFile(t, filepath.Join(root, "audit-v2", Filename), skillMD)
+		if err := os.Symlink(filepath.Join("..", "shared", schemaFilename), filepath.Join(root, "audit-v2", schemaFilename)); err != nil {
+			t.Skip("symlinks unsupported:", err)
+		}
+		if err := os.Symlink("audit-v2", filepath.Join(root, "audit")); err != nil {
+			t.Fatal(err)
+		}
+		skill, err := Parse(filepath.Join(root, "audit"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if skill.Name != "audit" || skill.SchemaJSON != `{"type":"object"}` || len(skill.Warnings) != 0 {
+			t.Errorf("name = %q schema = %q warnings = %v", skill.Name, skill.SchemaJSON, skill.Warnings)
+		}
 	})
 }
 
