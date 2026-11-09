@@ -107,7 +107,12 @@ func Walk(root string, fn func(*Skill) error, opts ...WalkOption) error {
 	if err != nil {
 		return fmt.Errorf("skills: resolve %s: %w", root, err)
 	}
-	err = walkFS(os.DirFS(abs), ".", abs, func(skill *Skill, err error) error {
+	r, err := os.OpenRoot(abs)
+	if err != nil {
+		return fmt.Errorf("skills: walk %s: %w", abs, err)
+	}
+	defer func() { _ = r.Close() }()
+	err = walkFS(r.FS(), ".", abs, func(skill *Skill, err error) error {
 		if err != nil {
 			return err
 		}

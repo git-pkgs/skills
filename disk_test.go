@@ -227,4 +227,104 @@ func TestParseDiskConfinesSymlinks(t *testing.T) {
 			t.Errorf("schema = %q", skill.SchemaJSON)
 		}
 	})
+
+	t.Run("linked-skill-dir", func(t *testing.T) {
+		base := t.TempDir()
+		target := filepath.Join(base, "code", "audit-src")
+		writeFile(t, filepath.Join(target, Filename), skillMD)
+		writeFile(t, filepath.Join(target, "scripts", "check.sh"), "#!/bin/sh\n")
+		writeFile(t, filepath.Join(base, "outside", "secret.json"), `{"secret":true}`)
+		collection := filepath.Join(base, "home", "skills")
+		link := filepath.Join(collection, "audit")
+		if err := os.MkdirAll(collection, dirPerm); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink(target, link); err != nil {
+			t.Skip("symlinks unsupported:", err)
+		}
+		skill, err := Parse(link)
+		if err != nil {
+			t.Fatal(err)
+		}
+		// Name inference and warnings use the link's name, as os.DirFS did.
+		if skill.Name != "audit" || skill.Dir != "audit" || len(skill.Warnings) != 0 {
+			t.Errorf("name = %q dir = %q warnings = %v", skill.Name, skill.Dir, skill.Warnings)
+		}
+		if skill.SourcePath != link || !skill.HasScripts() {
+			t.Errorf("SourcePath = %q files = %v", skill.SourcePath, skill.Files)
+		}
+		if err := os.Symlink(filepath.Join("..", "..", "outside", "secret.json"), filepath.Join(target, schemaFilename)); err != nil {
+			t.Fatal(err)
+		}
+		if skill, err := Parse(link); err == nil {
+			t.Fatalf("Parse followed schema.json out of the linked skill: schema = %q", skill.SchemaJSON)
+		}
+	})
+}
+
+func TestWalkDiskConfinesSymlinks(t *testing.T) {
+	base := t.TempDir()
+	outside := filepath.Join(base, "outside")
+	writeFile(t, filepath.Join(outside, schemaFilename), `{"secret":true}`)
+	writeFile(t, filepath.Join(outside, "audit", Filename), "---\nname: audit\ndescription: Audit\n---\n")
+	skillMD := "---\nname: lint\ndescription: Lint\n---\n"
+
+	symlink := func(t *testing.T, target, link string) {
+		t.Helper()
+		if err := os.MkdirAll(filepath.Dir(link), dirPerm); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink(target, link); err != nil {
+			t.Skip("symlinks unsupported:", err)
+		}
+	}
+	walk := func(t *testing.T, root string) ([]string, error) {
+		t.Helper()
+		var names []string
+		err := Walk(root, func(skill *Skill) error {
+			names = append(names, skill.Name)
+			return nil
+		})
+		return names, err
+	}
+
+	t.Run("schema", func(t *testing.T) {
+		root := filepath.Join(base, "schema")
+		writeFile(t, filepath.Join(root, "lint", Filename), skillMD)
+		symlink(t, filepath.Join(outside, schemaFilename), filepath.Join(root, "lint", schemaFilename))
+		if names, err := walk(t, root); err == nil {
+			t.Fatalf("Walk followed schema.json out of the collection: %v", names)
+		}
+	})
+	t.Run("skill-file", func(t *testing.T) {
+		root := filepath.Join(base, "skill-file")
+		symlink(t, filepath.Join(outside, "audit", Filename), filepath.Join(root, "audit", Filename))
+		if names, err := walk(t, root); err == nil {
+			t.Fatalf("Walk followed SKILL.md out of the collection: %v", names)
+		}
+	})
+	t.Run("inside-collection", func(t *testing.T) {
+		root := filepath.Join(base, "inside")
+		writeFile(t, filepath.Join(root, "shared", schemaFilename), `{"type":"object"}`)
+		writeFile(t, filepath.Join(root, "lint", Filename), skillMD)
+		symlink(t, filepath.Join("..", "shared", schemaFilename), filepath.Join(root, "lint", schemaFilename))
+		var schema string
+		err := Walk(root, func(skill *Skill) error {
+			schema = skill.SchemaJSON
+			return nil
+		})
+		if err != nil || schema != `{"type":"object"}` {
+			t.Fatalf("schema = %q err = %v", schema, err)
+		}
+	})
+	t.Run("linked-skill-dir", func(t *testing.T) {
+		// fs.WalkDir does not descend into directory symlinks, with os.DirFS or os.Root.
+		root := filepath.Join(base, "linked")
+		writeFile(t, filepath.Join(root, "lint", Filename), skillMD)
+		symlink(t, filepath.Join(outside, "audit"), filepath.Join(root, "audit"))
+		names, err := walk(t, root)
+		if err != nil || strings.Join(names, ",") != "lint" {
+			t.Fatalf("walked %v err = %v", names, err)
+		}
+	})
 }

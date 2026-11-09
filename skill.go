@@ -115,9 +115,13 @@ func Parse(p string) (*Skill, error) {
 	// Read from the parent so the skill directory's own name is available
 	// for name inference and warnings.
 	dir := filepath.Dir(abs)
-	root := filepath.Dir(dir)
+	resolved, err := filepath.EvalSymlinks(dir)
+	if err != nil {
+		return nil, fmt.Errorf("skills: resolve %s: %w", dir, err)
+	}
+	root := filepath.Dir(resolved)
 	name := filepath.Base(dir) + "/" + filepath.Base(abs)
-	if root == dir {
+	if root == resolved {
 		name = filepath.Base(abs)
 	}
 	// os.Root refuses symlinks that leave root, which os.DirFS follows.
@@ -126,12 +130,29 @@ func Parse(p string) (*Skill, error) {
 		return nil, fmt.Errorf("skills: open %s: %w", root, err)
 	}
 	defer func() { _ = r.Close() }()
-	skill, err := parseFS(r.FS(), name, root)
+	fsys := r.FS()
+	if link, target := filepath.Base(dir), filepath.Base(resolved); link != target {
+		fsys = renamedFS{fsys, link, target}
+	}
+	skill, err := parseFS(fsys, name, filepath.Dir(dir))
 	if err != nil {
 		return nil, err
 	}
 	skill.SourcePath = dir
 	return skill, nil
+}
+
+// renamedFS serves directory target as link, so a symlinked skill keeps the link's name.
+type renamedFS struct {
+	fs.FS
+	link, target string
+}
+
+func (r renamedFS) Open(name string) (fs.File, error) {
+	if rest, ok := strings.CutPrefix(name, r.link); ok && (rest == "" || rest[0] == '/') {
+		name = r.target + rest
+	}
+	return r.FS.Open(name)
 }
 
 // parseFS reads name from fsys. Errors show paths joined to label when set,
