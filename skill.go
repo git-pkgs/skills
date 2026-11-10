@@ -103,7 +103,8 @@ func ParseFS(fsys fs.FS, name string) (*Skill, error) {
 }
 
 // Parse reads the skill at path on disk, accepting the same forms as ParseFS,
-// and sets SourcePath to its absolute directory.
+// and sets SourcePath to its absolute directory. A symlink that leaves the
+// skill directory's parent is an error, as is one with an absolute target.
 func Parse(p string) (*Skill, error) {
 	abs, err := filepath.Abs(p)
 	if err != nil {
