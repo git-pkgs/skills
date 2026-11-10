@@ -103,7 +103,8 @@ func ParseFS(fsys fs.FS, name string) (*Skill, error) {
 }
 
 // Parse reads the skill at path on disk, accepting the same forms as ParseFS,
-// and sets SourcePath to its absolute directory.
+// and sets SourcePath to its absolute directory. A symlink that leaves the
+// skill directory's parent is an error, as is one with an absolute target.
 func Parse(p string) (*Skill, error) {
 	abs, err := filepath.Abs(p)
 	if err != nil {
@@ -115,17 +116,48 @@ func Parse(p string) (*Skill, error) {
 	// Read from the parent so the skill directory's own name is available
 	// for name inference and warnings.
 	dir := filepath.Dir(abs)
-	root := filepath.Dir(dir)
+	resolved, err := filepath.EvalSymlinks(dir)
+	if err != nil {
+		return nil, fmt.Errorf("skills: resolve %s: %w", dir, err)
+	}
+	root, target := filepath.Dir(resolved), filepath.Base(resolved)
+	// A skill directory linked from outside its collection may only read itself.
+	if parent, err := filepath.EvalSymlinks(filepath.Dir(dir)); err != nil || parent != root {
+		root, target = resolved, "."
+	}
 	name := filepath.Base(dir) + "/" + filepath.Base(abs)
-	if root == dir {
+	if filepath.Dir(dir) == dir {
 		name = filepath.Base(abs)
 	}
-	skill, err := parseFS(os.DirFS(root), name, root)
+	// os.Root refuses symlinks that leave root, which os.DirFS follows.
+	r, err := os.OpenRoot(root)
+	if err != nil {
+		return nil, fmt.Errorf("skills: open %s: %w", root, err)
+	}
+	defer func() { _ = r.Close() }()
+	fsys := r.FS()
+	if link := filepath.Base(dir); link != target {
+		fsys = renamedFS{fsys, link, target}
+	}
+	skill, err := parseFS(fsys, name, filepath.Dir(dir))
 	if err != nil {
 		return nil, err
 	}
 	skill.SourcePath = dir
 	return skill, nil
+}
+
+// renamedFS serves directory target as link, so a symlinked skill keeps the link's name.
+type renamedFS struct {
+	fs.FS
+	link, target string
+}
+
+func (r renamedFS) Open(name string) (fs.File, error) {
+	if rest, ok := strings.CutPrefix(name, r.link); ok && (rest == "" || rest[0] == '/') {
+		name = path.Join(r.target, rest)
+	}
+	return r.FS.Open(name)
 }
 
 // parseFS reads name from fsys. Errors show paths joined to label when set,

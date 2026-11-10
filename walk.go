@@ -98,7 +98,8 @@ func walkFS(fsys fs.FS, root, label string, fn func(*Skill, error) error, opts [
 }
 
 // Walk calls fn for each SKILL.md under root on disk, with SourcePath set.
-// It stops at the first parse error or error returned by fn.
+// It stops at the first parse error or error returned by fn. A symlink that
+// leaves root is a parse error, as is one with an absolute target.
 func Walk(root string, fn func(*Skill) error, opts ...WalkOption) error {
 	if fn == nil {
 		return errors.New("skills: walk callback is required")
@@ -107,7 +108,12 @@ func Walk(root string, fn func(*Skill) error, opts ...WalkOption) error {
 	if err != nil {
 		return fmt.Errorf("skills: resolve %s: %w", root, err)
 	}
-	err = walkFS(os.DirFS(abs), ".", abs, func(skill *Skill, err error) error {
+	r, err := os.OpenRoot(abs)
+	if err != nil {
+		return fmt.Errorf("skills: walk %s: %w", abs, err)
+	}
+	defer func() { _ = r.Close() }()
+	err = walkFS(r.FS(), ".", abs, func(skill *Skill, err error) error {
 		if err != nil {
 			return err
 		}
